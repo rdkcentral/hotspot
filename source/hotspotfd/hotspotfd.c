@@ -355,8 +355,8 @@ STATIC void notify_tunnel_status(char *status)
     {
         CcspTraceError(("Error setting TunnelStatus in TR181 Data Model\n"));
     }
-    const char *signal_status = (strcmp(status, "Up") == 0) ? "TUNNEL_UP" : "TUNNEL_DOWN";
-    ret = CcspBaseIf_SendSignal_WithData_rbus(bus_handle, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", signal_status);
+    char *signal_status = (strcmp(status, "Up") == 0) ? "TUNNEL_UP" : "TUNNEL_DOWN";
+    ret = CcspBaseIf_SendSignal_WithData_rbus(bus_handle, "TunnelStatus", signal_status);
     if ( ret != CCSP_SUCCESS )
     {
         CcspTraceError(("%s : TunnelStatus send rbus data failed,  ret value is %d\n",
