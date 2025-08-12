@@ -371,8 +371,8 @@ STATIC void notify_tunnel_status(char *status)
     {
         CcspTraceError(("Error setting TunnelStatus in TR181 Data Model\n"));
     }
-    ret = CcspBaseIf_SendSignal_WithData(bus_handle,
-                                         "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
+    char *signal_status = (strcmp(status, "Up") == 0) ? "TUNNEL_UP" : "TUNNEL_DOWN";
+    ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "TunnelStatus", signal_status);
     if ( ret != CCSP_SUCCESS )
     {
         CcspTraceError(("%s : TunnelStatus send rbus data failed,  ret value is %d\n",
@@ -2115,7 +2115,7 @@ Try_primary:
                     }
                     notify_tunnel_status("Up");
                     if (false == gWebConfTun){ 
-		        ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus" , "TUNNEL_UP");
+		        ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "TunnelStatus" , "TUNNEL_UP");
                         if ( ret != CCSP_SUCCESS )
                         {
                              CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
@@ -2296,7 +2296,7 @@ Try_secondary:
                     }
                     notify_tunnel_status("Up");
                     gWebConfTun = false;
-		    ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus" , "TUNNEL_UP");
+		    ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "TunnelStatus" , "TUNNEL_UP");
                     if ( ret != CCSP_SUCCESS )
                     {
                           CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
@@ -2367,7 +2367,7 @@ Try_secondary:
 
 			/*Signal wifi module for tunnel down */
                         notify_tunnel_status("Down");
-			ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus", "TUNNEL_DOWN");
+			ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "TunnelStatus", "TUNNEL_DOWN");
                         if ( ret != CCSP_SUCCESS )
                         {
                               CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
