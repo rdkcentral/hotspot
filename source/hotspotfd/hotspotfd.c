@@ -2049,7 +2049,7 @@ void hotspot_start()
 
 #ifdef WAN_FAILOVER_SUPPORTED
     rbusDataElement_t dataElements[1] = {
-        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT, {NULL, NULL, NULL, CcspBaseIf_SendSignal_WithData_rbus, NULL, NULL}}
+        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT, {NULL, NULL, NULL, NULL, NULL, NULL}}
     };
     ret = rbus_open(&handle, "HotspotTunnelEvent");
     if(ret != RBUS_ERROR_SUCCESS)
