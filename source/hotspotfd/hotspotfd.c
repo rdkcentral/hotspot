@@ -377,6 +377,9 @@ STATIC void notify_tunnel_status(char *status)
         CcspTraceError(("%s : TunnelStatus send rbus data failed,  ret value is %d\n",
                                                                                __FUNCTION__ ,ret));
     }
+    else{
+        CcspTraceInfo(("%s : TunnelStatus send rbus data success\n", __FUNCTION__));
+    }
     if(strcmp("Down",status) == 0)
     {
         gVapIsUp = false;
@@ -2046,7 +2049,7 @@ void hotspot_start()
 
 #ifdef WAN_FAILOVER_SUPPORTED
     rbusDataElement_t dataElements[1] = {
-        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT, {NULL, NULL, NULL, NULL, eventSubHandler, NULL}}
+        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT, {NULL, NULL, NULL, CcspBaseIf_SendSignal_WithData_rbus, NULL, NULL}}
     };
     ret = rbus_open(&handle, "HotspotTunnelEvent");
     if(ret != RBUS_ERROR_SUCCESS)
@@ -2054,13 +2057,15 @@ void hotspot_start()
         CcspTraceError(("HotspotTunnelEvent : rbus_open failed: %d\n", ret));
         return;
     }
-    rc = rbus_regDataElements(handle, 1, dataElements);
-    if(rc != RBUS_ERROR_SUCCESS)
+    ret = rbus_regDataElements(handle, 1, dataElements);
+    if(ret != RBUS_ERROR_SUCCESS)
     {
-        CcspTraceError(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus rbus_regDataElements failed: %d\n", rc));
-        goto exit1;
+        CcspTraceError(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus rbus_regDataElements failed: %d\n", ret));
+        return;
     }
-    CcspTraceInfo(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus"));
+    else{
+        CcspTraceInfo(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus"));
+    }
     pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
 
 #endif
