@@ -280,6 +280,50 @@ Hotspotfd_MsgItem hotspotfdMsgArr[] = {
 #endif
     };
 
+char TunnelStatus[128] = {0};
+rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* opts)
+{
+    (void)handle;
+    (void)opts;
+
+    CcspTraceInfo(("In %s\n", __FUNCTION__));
+               
+    //rbus_set
+    rbusValue_t val;
+    rbusValue_Init(&val);
+    rbusValue_SetString(val, TunnelStatus);
+    rbusProperty_SetValue(property, val);
+    rbusValue_Release(val);
+    
+    CcspTraceInfo(("Out %s\n", __FUNCTION__));
+    return RBUS_ERROR_SUCCESS;
+}
+
+rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* opts)
+{
+    (void)handle;
+    (void)opts;
+   
+    CcspTraceInfo(("In %s\n", __FUNCTION__));
+
+    rbusValue_t value = rbusProperty_GetValue(property);
+    const char* newStatus = rbusValue_GetString(value, NULL);
+    if(newStatus && (strcmp(newStatus, "Up") == 0 || strcmp(newStatus, "Down") == 0))
+    {
+        strncpy(TunnelStatus, newStatus, sizeof(TunnelStatus) - 1);
+        TunnelStatus[sizeof(TunnelStatus) - 1] = '\0'; // Ensure null termination
+        CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
+    }
+    else
+    {
+        CcspTraceError(("Invalid TunnelStatus value: %s\n", newStatus? newStatus : "NULL"));
+        return RBUS_ERROR_INVALID_INPUT;
+    }
+
+    CcspTraceInfo(("Out %s\n", __FUNCTION__));
+    return RBUS_ERROR_SUCCESS;
+}
+
 HotspotfdType Get_HotspotfdType(char * name)
 {
 
@@ -2049,7 +2093,7 @@ void hotspot_start()
 
 #ifdef WAN_FAILOVER_SUPPORTED
     rbusDataElement_t dataElements[1] = {
-        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT, {NULL, NULL, NULL, NULL, NULL, NULL}}
+        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, NULL, NULL}}
     };
     ret = rbus_open(&handle, "HotspotTunnelEvent");
     if(ret != RBUS_ERROR_SUCCESS)
