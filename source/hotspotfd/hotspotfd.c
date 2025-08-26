@@ -313,6 +313,7 @@ rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t pr
         strncpy(TunnelStatus, newStatus, sizeof(TunnelStatus) - 1);
         TunnelStatus[sizeof(TunnelStatus) - 1] = '\0'; // Ensure null termination
         CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
+        notify_tunnel_status(TunnelStatus);
     }
     else
     {
