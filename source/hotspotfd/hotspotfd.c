@@ -219,6 +219,21 @@ char gSnoopSyseventCircuitIDs[kSnoop_MaxCircuitIDs][kSnooper_circuit_id_len] = {
     ksnooper_circuit_id6
 };
 
+#if defined (AMENITIES_NETWORK_ENABLED)
+char gAmenitySnoopCircuitIDs[][kSnoop_MaxCircuitLen] = {
+    kSNOOPER_AMENITY_CIRCUIT_ID61,
+    kSNOOPER_AMENITY_CIRCUIT_ID62,
+    kSNOOPER_AMENITY_CIRCUIT_ID63
+};
+#define AMENITY_SNOOP_MAX_CLIENTS (sizeof(gAmenitySnoopCircuitIDs) / sizeof(gAmenitySnoopCircuitIDs[0]))
+
+int gAmenitySnoopMaxNumberOfClients = AMENITY_SNOOP_MAX_CLIENTS;
+char gAmenitySnoopCircuitIDList [AMENITY_SNOOP_MAX_CLIENTS][kSnoop_MaxCircuitLen] = {0};
+int gAmenityQueueNums [AMENITY_SNOOP_MAX_CLIENTS] = {0};
+char g_cAmenityHostnameForQueue[AMENITY_SNOOP_MAX_CLIENTS][kSnooper_MaxHostNameLen];
+char g_cAmenityInformIpForQueue[AMENITY_SNOOP_MAX_CLIENTS][INET_ADDRSTRLEN];
+#endif /*AMENITIES_NETWORK_ENABLED*/
+
 char gSnoopSSIDList[kSnoop_MaxCircuitIDs][kSnoop_MaxCircuitLen];
 int  gSnoopSSIDListInt[kSnoop_MaxCircuitIDs];
 char gSnoopSyseventSSIDs[kSnoop_MaxCircuitIDs][kSnooper_circuit_id_len] = { 
@@ -1101,7 +1116,10 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
     async_id_t snoop_circuit_enable_id;
     async_id_t snoop_remote_enable_id;
     async_id_t snoop_max_clients_id;
-    async_id_t snoop_circuit_ids[kSnoop_MaxCircuitIDs]; 
+    async_id_t snoop_circuit_ids[kSnoop_MaxCircuitIDs];
+    #if defined (AMENITIES_NETWORK_ENABLED)
+    async_id_t amenitySnoopCircuitIds [gAmenitySnoopMaxNumberOfClients];
+    #endif /* AMENITIES_NETWORK_ENABLED */
     async_id_t snoop_ssids_ids[kSnoop_MaxCircuitIDs];
     async_id_t hotspotfd_current_wan_ipaddr_v4_id;
     async_id_t hotspotfd_current_wan_ipaddr_v6_id;
@@ -1140,9 +1158,18 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
 
     for(i=0; i<kSnoop_MaxCircuitIDs; i++) 
 	{
-        sysevent_setnotification(sysevent_fd, sysevent_token, gSnoopSyseventCircuitIDs[i], &snoop_circuit_ids[i]);
+        int iRet = sysevent_setnotification(sysevent_fd, sysevent_token, gSnoopSyseventCircuitIDs[i], &snoop_circuit_ids[i]);
+        if (0 != iRet)
+            CcspTraceError(("%s:%d,iRet:%d for %s\n",__FUNCTION__,__LINE__, i, gSnoopSyseventCircuitIDs[i]));
     }
-
+    #if defined (AMENITIES_NETWORK_ENABLED)
+    for (i = 0; i < gAmenitySnoopMaxNumberOfClients; i++)
+    {
+        int iRet = sysevent_setnotification(sysevent_fd, sysevent_token, gAmenitySnoopCircuitIDs[i], &amenitySnoopCircuitIds[i]);
+        if (0 != iRet)
+            CcspTraceError(("%s:%d,iRet:%d for %s\n",__FUNCTION__,__LINE__, i, gAmenitySnoopCircuitIDs[i]));
+    }
+    #endif /* AMENITIES_NETWORK_ENABLED */
     for(i=0; i<kSnoop_MaxCircuitIDs; i++) 
 	{
         sysevent_setnotification(sysevent_fd, sysevent_token, gSnoopSyseventSSIDs[i], &snoop_ssids_ids[i]);
@@ -1150,7 +1177,8 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
 
     for (;;) {
 	/* Coverity Fix CID : 140441 STRING_OVERFLOW */
-        char name[25], val[kMax_IPAddressLength];
+        //sysevent name length and value length should be less than 32 abd 64 bytes while setting, if it more then please modify the below static array name and val
+        char name[32], val[64];
         int namelen = sizeof(name);
         int vallen  = sizeof(val);
         int err;
@@ -1361,7 +1389,22 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
                     break;
                 }
             }
-
+            #if defined (AMENITIES_NETWORK_ENABLED)
+            for(i=0; i<gAmenitySnoopMaxNumberOfClients; i++) {
+                rc = strcmp_s(name, strlength,gAmenitySnoopCircuitIDs[i], &ind);
+                ERR_CHK(rc);
+                if ((ind == 0) && (rc == EOK)) {
+                    CcspTraceInfo(("%s:%d,Amenity CircuitID List[%d] = %s\n", __FUNCTION__,__LINE__,i, val));
+                    rc = strcpy_s(gAmenitySnoopCircuitIDList[i], sizeof(gAmenitySnoopCircuitIDList[i]), val);
+                    if (rc != EOK)
+                    {
+                        ERR_CHK(rc);
+                        return NULL;
+                    }
+                    break;
+                }
+            }
+            #endif /* AMENITIES_NETWORK_ENABLED */
             for(i=0; i<kSnoop_MaxCircuitIDs; i++) {
                 rc = strcmp_s(name, strlength,gSnoopSyseventSSIDs[i], &ind);
                 ERR_CHK(rc);
@@ -1378,6 +1421,8 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
                 }
             }
         }
+        else
+            CcspTraceError(("%s:%d,Error:%d\n",__FUNCTION__,__LINE__,err));
         hotspotfd_log();
     }
 
@@ -1742,7 +1787,29 @@ STATIC int hotspotfd_getStartupParameters(void)
             	));  
         	}
     	}
-
+        #if defined (AMENITIES_NETWORK_ENABLED)
+        for(i=0; i < gAmenitySnoopMaxNumberOfClients; i++)
+        {
+            if((status = sysevent_get(sysevent_fd_gs, sysevent_token_gs, gAmenitySnoopCircuitIDs[i],
+                                      gAmenitySnoopCircuitIDList[i], kSnoop_MaxCircuitLen)))
+            {
+                CcspTraceError(("sysevent_get failed to get %s: %d\n", gAmenitySnoopCircuitIDs[i], status));
+                status = STATUS_FAILURE;
+                break;
+            }
+            else
+            {
+                msg_debug("Loaded sysevent gAmenitySnoopCircuitIDs[%d]: %s with %s\n",
+                          i, gAmenitySnoopCircuitIDs[i],
+                          gAmenitySnoopCircuitIDList[i]
+                );
+                CcspTraceInfo(("Loaded sysevent gAmenitySnoopCircuitIDs[%d]: %s with %s\n",
+                               i, gAmenitySnoopCircuitIDs[i],
+                               gAmenitySnoopCircuitIDList[i]
+                ));
+            }
+        }
+        #endif /* AMENITIES_NETWORK_ENABLED*/
     	for(i=gSnoopFirstQueueNumber; i < gSnoopNumberOfQueues+gSnoopFirstQueueNumber; i++) 
 		{
 	        if((status = sysevent_get(sysevent_fd_gs, sysevent_token_gs, gSnoopSyseventSSIDs[i], 
