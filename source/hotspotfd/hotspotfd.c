@@ -365,6 +365,16 @@ STATIC bool set_tunnelstatus(char* status) {
 STATIC void notify_tunnel_status(char *status)
 {
     int ret;
+    static char lastPublishedStatus[128] = {0};
+    // Avoid duplicate publishes
+    if (strcmp(lastPublishedStatus, status) == 0)
+    {
+        CcspTraceInfo(("TunnelStatus already published as %s. Skipping publish.\n", status));
+        return;
+    }
+    strncpy(lastPublishedStatus, status, sizeof(lastPublishedStatus) - 1);
+    lastPublishedStatus[sizeof(lastPublishedStatus) - 1] = '\0';
+
     if(set_tunnelstatus(status))
     {
         CcspTraceInfo(("TunnelStatus set to %s in TR181\n", status));
@@ -374,7 +384,11 @@ STATIC void notify_tunnel_status(char *status)
         CcspTraceError(("Error setting TunnelStatus in TR181 Data Model\n"));
     }
     ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
-    if ( ret != CCSP_SUCCESS )
+    if (ret == RBUS_ERROR_NOSUBSCRIBERS)
+    {
+        CcspTraceInfo(("%s : No subscribers for TunnelStatus. Skipping publish.\n", __FUNCTION__));
+    }
+    else if ( ret != CCSP_SUCCESS )
     {
         CcspTraceError(("%s : TunnelStatus send rbus data failed,  ret value is %d\n",
                                                                                __FUNCTION__ ,ret));
