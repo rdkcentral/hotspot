@@ -365,7 +365,7 @@ STATIC bool set_tunnelstatus(char* status) {
 STATIC void notify_tunnel_status(char *status)
 {
     int ret;
-    static char lastPublishedStatus[128] = {0};
+    /*static char lastPublishedStatus[128] = {0};
     // Avoid duplicate publishes
     if (strcmp(lastPublishedStatus, status) == 0)
     {
@@ -374,7 +374,7 @@ STATIC void notify_tunnel_status(char *status)
     }
     strncpy(lastPublishedStatus, status, sizeof(lastPublishedStatus) - 1);
     lastPublishedStatus[sizeof(lastPublishedStatus) - 1] = '\0';
-
+    */
     if(set_tunnelstatus(status))
     {
         CcspTraceInfo(("TunnelStatus set to %s in TR181\n", status));
@@ -438,7 +438,7 @@ rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t pr
         strncpy(TunnelStatus, newStatus, sizeof(TunnelStatus) - 1);
         TunnelStatus[sizeof(TunnelStatus) - 1] = '\0'; // Ensure null termination
         CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
-        notify_tunnel_status(TunnelStatus);
+        //notify_tunnel_status(TunnelStatus);
     }
     else
     {
