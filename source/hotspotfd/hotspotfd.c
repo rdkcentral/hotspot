@@ -195,6 +195,8 @@ rbusHandle_t handle;
 
 STATIC pthread_t dhcp_snooper_tid;
 
+char TunnelStatus[128] = {0};
+
 int gSnoopNumberOfClients = 0; //shared variable across hotspotfd and dhcp_snooperd
 
 bool gSnoopEnable = true;
@@ -307,6 +309,7 @@ HotspotfdType Get_HotspotfdType(char * name)
     return HOTSPOTFD_ERROR;
 }
 
+#if 0
 STATIC bool set_tunnelstatus(char* status) {
 
     CCSP_MESSAGE_BUS_INFO *bus_info = (CCSP_MESSAGE_BUS_INFO *)bus_handle;
@@ -358,24 +361,27 @@ STATIC bool set_tunnelstatus(char* status) {
     }
     return TRUE;
 }
+#endif
 
 STATIC void notify_tunnel_status(char *status)
 {
     int ret;
-    if(set_tunnelstatus(status))
+    /*if(set_tunnelstatus(status))
     {
         CcspTraceInfo(("TunnelStatus set to %s in TR181\n", status));
     }
     else
     {
         CcspTraceError(("Error setting TunnelStatus in TR181 Data Model\n"));
-    }
-    ret = CcspBaseIf_SendSignal_WithData(bus_handle,
-                                         "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
+    }*/
+    ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
     if ( ret != CCSP_SUCCESS )
     {
         CcspTraceError(("%s : TunnelStatus send rbus data failed,  ret value is %d\n",
                                                                                __FUNCTION__ ,ret));
+    }
+    else{
+        CcspTraceInfo(("%s : TunnelStatus send rbus data success\n", __FUNCTION__));
     }
     if(strcmp("Down",status) == 0)
     {
@@ -385,6 +391,62 @@ STATIC void notify_tunnel_status(char *status)
     {
         gVapIsUp = true;
     }
+}
+
+rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* opts)
+{
+    (void)handle;
+    (void)opts;
+
+    CcspTraceInfo(("In %s\n", __FUNCTION__));
+     
+    // Initialize default if empty
+    if (TunnelStatus[0] == '\0') {
+        strncpy(TunnelStatus, "Up", sizeof(TunnelStatus) - 1);
+        TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
+        CcspTraceInfo(("TunnelStatus defaulted to Up\n"));
+    }
+
+    //set value
+    rbusValue_t val;
+    rbusValue_Init(&val);
+    rbusValue_SetString(val, TunnelStatus);
+    rbusProperty_SetValue(property, val);
+    rbusValue_Release(val);
+    
+    CcspTraceInfo(("Out %s\n", __FUNCTION__));
+    return RBUS_ERROR_SUCCESS;
+}
+
+rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* opts)
+{
+    (void)handle;
+    (void)opts;
+   
+    CcspTraceInfo(("In %s\n", __FUNCTION__));
+
+    rbusValue_t value = rbusProperty_GetValue(property);
+    const char* newStatus = rbusValue_GetString(value, NULL);
+    if(newStatus && (strcmp(newStatus, "Up") == 0 || strcmp(newStatus, "Down") == 0))
+    {
+        if(strcmp(TunnelStatus, newStatus) != 0){
+            strncpy(TunnelStatus, newStatus, sizeof(TunnelStatus) - 1);
+            TunnelStatus[sizeof(TunnelStatus) - 1] = '\0'; // Ensure null termination
+            CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
+            notify_tunnel_status(TunnelStatus);
+        }
+        else{
+            CcspTraceInfo(("TunnelStatus is already %s, no change needed\n", TunnelStatus));
+        }
+    }
+    else
+    {
+        CcspTraceError(("Invalid TunnelStatus value: %s\n", newStatus? newStatus : "NULL"));
+        return RBUS_ERROR_INVALID_INPUT;
+    }
+
+    CcspTraceInfo(("Out %s\n", __FUNCTION__));
+    return RBUS_ERROR_SUCCESS;
 }
 
 STATIC bool set_validatessid() {
@@ -2005,13 +2067,25 @@ void hotspot_start()
     hotspotfd_log();
 
 #ifdef WAN_FAILOVER_SUPPORTED
-
+    rbusDataElement_t dataElements[1] = {
+        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, NULL, NULL}}
+    };
     ret = rbus_open(&handle, "HotspotTunnelEvent");
     if(ret != RBUS_ERROR_SUCCESS)
     {
         CcspTraceError(("HotspotTunnelEvent : rbus_open failed: %d\n", ret));
         return;
     }
+    ret = rbus_regDataElements(handle, 1, dataElements);
+    if(ret != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceError(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus rbus_regDataElements failed: %d\n", ret));
+        return;
+    }
+    else{
+        CcspTraceInfo(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus"));
+    }
+    sleep(1);
     pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
 
 #endif
@@ -2074,7 +2148,7 @@ Try_primary:
                     }
                     notify_tunnel_status("Up");
                     if (false == gWebConfTun){ 
-		        ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus" , "TUNNEL_UP");
+		        ret = CcspBaseIf_SendSignal_WithData(handle, "TunnelStatus" , "TUNNEL_UP");
                         if ( ret != CCSP_SUCCESS )
                         {
                              CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
@@ -2255,7 +2329,7 @@ Try_secondary:
                     }
                     notify_tunnel_status("Up");
                     gWebConfTun = false;
-		    ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus" , "TUNNEL_UP");
+		    ret = CcspBaseIf_SendSignal_WithData(handle, "TunnelStatus" , "TUNNEL_UP");
                     if ( ret != CCSP_SUCCESS )
                     {
                           CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
@@ -2326,7 +2400,7 @@ Try_secondary:
 
 			/*Signal wifi module for tunnel down */
                         notify_tunnel_status("Down");
-			ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus", "TUNNEL_DOWN");
+			ret = CcspBaseIf_SendSignal_WithData(handle, "TunnelStatus", "TUNNEL_DOWN");
                         if ( ret != CCSP_SUCCESS )
                         {
                               CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));

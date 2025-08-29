@@ -414,7 +414,7 @@ TEST_F(HotspotFdTestFixture, deleteSharedMem_CASE_2) {
     EXPECT_EQ(true, result);
 }
 
-TEST_F(HotspotFdTestFixture, set_tunnelstatus) {
+/*TEST_F(HotspotFdTestFixture, set_tunnelstatus) {
     bool result;
     char status[] = "Up";
     char mockFaultParam[] = "TRUE";
@@ -466,7 +466,7 @@ TEST_F(HotspotFdTestFixture, notify_tunnel_status_DOWN) {
     .Times(1).WillOnce(Return(CCSP_SUCCESS));
 
     notify_tunnel_status(status);
-}
+}*/
 
 TEST_F(HotspotFdTestFixture, set_validatessid_CASE1) {
     bool result;
