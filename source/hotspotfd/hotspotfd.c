@@ -400,7 +400,14 @@ rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t pr
     (void)opts;
 
     CcspTraceInfo(("In %s\n", __FUNCTION__));
-               
+     
+    // Initialize default if empty
+    if (TunnelStatus[0] == '\0') {
+        strncpy(TunnelStatus, "Up", sizeof(TunnelStatus) - 1);
+        TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
+        CcspTraceInfo(("TunnelStatus defaulted to Up\n"));
+    }
+
     //set value
     rbusValue_t val;
     rbusValue_Init(&val);
@@ -2119,6 +2126,7 @@ void hotspot_start()
     else{
         CcspTraceInfo(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus"));
     }
+    sleep(1);
     pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
 
 #endif
