@@ -310,6 +310,7 @@ HotspotfdType Get_HotspotfdType(char * name)
     return HOTSPOTFD_ERROR;
 }
 
+#if 0
 STATIC bool set_tunnelstatus(char* status) {
 
     CCSP_MESSAGE_BUS_INFO *bus_info = (CCSP_MESSAGE_BUS_INFO *)bus_handle;
@@ -361,6 +362,7 @@ STATIC bool set_tunnelstatus(char* status) {
     }
     return TRUE;
 }
+#endif
 
 STATIC void notify_tunnel_status(char *status)
 {
