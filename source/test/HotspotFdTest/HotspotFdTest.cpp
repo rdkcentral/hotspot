@@ -652,7 +652,6 @@ TEST_F(HotspotFdTestFixture, hotspotfd_log) {
     gDeadInterval = 30;
     strcpy(gpPrimaryEP, "96.109.150.114");
     strcpy(gpSecondaryEP, "96.109.150.120");
-    strcpy(gKeepAliveInterface, "erouter0");
 
     EXPECT_CALL(*g_fileIOMock, fclose(_)).Times(1).WillOnce(Return(0));
     EXPECT_CALL(*g_safecLibMock, _strcpy_s_chk(_, _, _, _)).Times(2).WillRepeatedly(Return(0));

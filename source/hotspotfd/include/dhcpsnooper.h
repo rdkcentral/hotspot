@@ -108,6 +108,8 @@
 #define kSnooper_MaxIpAddrLen   20 
 #define kSnooper_MaxCircuitLen  80
 
+
+
 #define kSnoop_DefaultQueue             1
 #define kSnoop_DefaultNumberOfQueues    6
 #define kSnoop_MaxNumberOfQueues        6
@@ -153,6 +155,20 @@
 #define WRITE 1
 #define READ_ERR -1
 #define CLOSE_ERR -1
+
+#if defined (AMENITIES_NETWORK_ENABLED)
+#define kSNOOPER_AMENITY_CIRCUIT_ID61         "snooper-queue61-circuitID"
+#define kSNOOPER_AMENITY_CIRCUIT_ID62         "snooper-queue62-circuitID"
+#define kSNOOPER_AMENITY_CIRCUIT_ID63         "snooper-queue63-circuitID"
+#define AMENITY_QUEUE_BEGIN     61
+#define AMENITY_QUEUE_END       63
+
+extern int gAmenitySnoopMaxNumberOfClients;
+extern char gAmenitySnoopCircuitIDList[][kSnoop_MaxCircuitLen];
+extern int gAmenityQueueNums[];
+extern char g_cAmenityHostnameForQueue[][kSnooper_MaxHostNameLen];
+extern char g_cAmenityInformIpForQueue[][INET_ADDRSTRLEN];
+#endif /* AMENITIES_NETWORK_ENABLED */
 
 /* What to do about packets we're asked to relay that
    already have a relay option: */
