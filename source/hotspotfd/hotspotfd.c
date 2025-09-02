@@ -375,6 +375,11 @@ STATIC void notify_tunnel_status(char *status)
     {
         CcspTraceError(("Error setting TunnelStatus in TR181 Data Model\n"));
     }*/
+
+    strncpy(TunnelStatus, status, sizeof(TunnelStatus) - 1);
+    TunnelStatus[sizeof(TunnelStatus) - 1] = '\0'; // Ensure null termination
+    CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
+
     ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
     if ( ret != CCSP_SUCCESS )
     {
@@ -401,13 +406,6 @@ rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t pr
 
     CcspTraceInfo(("In %s\n", __FUNCTION__));
      
-    // Initialize default if empty
-    if (TunnelStatus[0] == '\0') {
-        strncpy(TunnelStatus, "Up", sizeof(TunnelStatus) - 1);
-        TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
-        CcspTraceInfo(("TunnelStatus defaulted to Up\n"));
-    }
-
     //set value
     rbusValue_t val;
     rbusValue_Init(&val);
@@ -431,9 +429,7 @@ rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t pr
     if(newStatus && (strcmp(newStatus, "Up") == 0 || strcmp(newStatus, "Down") == 0))
     {
         if(strcmp(TunnelStatus, newStatus) != 0){
-            strncpy(TunnelStatus, newStatus, sizeof(TunnelStatus) - 1);
-            TunnelStatus[sizeof(TunnelStatus) - 1] = '\0'; // Ensure null termination
-            CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
+            CcspTraceInfo(("Calling notify_tunnel_status\n"));
             notify_tunnel_status(TunnelStatus);
         }
         else{
@@ -2109,7 +2105,7 @@ void hotspot_start()
 
 #ifdef WAN_FAILOVER_SUPPORTED
     rbusDataElement_t dataElements[1] = {
-        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, NULL, NULL}}
+        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, NULL, NULL}}
     };
     ret = rbus_open(&handle, "HotspotTunnelEvent");
     if(ret != RBUS_ERROR_SUCCESS)
@@ -2189,7 +2185,7 @@ Try_primary:
                     }
                     notify_tunnel_status("Up");
                     if (false == gWebConfTun){ 
-		        ret = CcspBaseIf_SendSignal_WithData(handle, "TunnelStatus" , "TUNNEL_UP");
+		        ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus" , "TUNNEL_UP");
                         if ( ret != CCSP_SUCCESS )
                         {
                              CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
@@ -2370,7 +2366,7 @@ Try_secondary:
                     }
                     notify_tunnel_status("Up");
                     gWebConfTun = false;
-		    ret = CcspBaseIf_SendSignal_WithData(handle, "TunnelStatus" , "TUNNEL_UP");
+		    ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus" , "TUNNEL_UP");
                     if ( ret != CCSP_SUCCESS )
                     {
                           CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
@@ -2441,7 +2437,7 @@ Try_secondary:
 
 			/*Signal wifi module for tunnel down */
                         notify_tunnel_status("Down");
-			ret = CcspBaseIf_SendSignal_WithData(handle, "TunnelStatus", "TUNNEL_DOWN");
+			ret = CcspBaseIf_SendSignal_WithData(bus_handle, "TunnelStatus", "TUNNEL_DOWN");
                         if ( ret != CCSP_SUCCESS )
                         {
                               CcspTraceError(("%s : TunnelStatus send data failed,  ret value is %d\n",__FUNCTION__ ,ret));
