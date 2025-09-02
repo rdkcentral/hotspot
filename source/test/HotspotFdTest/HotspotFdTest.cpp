@@ -430,43 +430,158 @@ TEST_F(HotspotFdTestFixture, deleteSharedMem_CASE_2) {
 
     result = set_tunnelstatus(status);
     EXPECT_EQ(true, result);
-}
-
-TEST_F(HotspotFdTestFixture, notify_tunnel_status_UP) {
-    char status[] = "Up";
-    char mockFaultParam[] = "TRUE";
-
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), _))
-    .Times(1).WillOnce(Return(CCSP_SUCCESS));
-
-    notify_tunnel_status(status);
-}
-
-TEST_F(HotspotFdTestFixture, notify_tunnel_status_DOWN) {
-    char status[] = "Down";
-    char mockFaultParam[] = "False";
-
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), _))
-    .Times(1).WillOnce(Return(CCSP_SUCCESS));
-
-    notify_tunnel_status(status);
 }*/
+
+/*STATIC void notify_tunnel_status(char *status)
+{
+    int ret;
+    strncpy(TunnelStatus, status, strlen(status));
+    TunnelStatus[strlen(status)] = '\0'; // Ensure null termination
+    CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
+
+    ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
+    if ( ret != CCSP_SUCCESS )
+    {
+        CcspTraceError(("%s : TunnelStatus send rbus data failed,  ret value is %d\n",
+                                                                               __FUNCTION__ ,ret));
+    }
+    else{
+        CcspTraceInfo(("%s : TunnelStatus send rbus data success\n", __FUNCTION__));
+    }
+    if(strcmp("Down",status) == 0)
+    {
+        gVapIsUp = false;
+    }
+    else if(strcmp("Up",status) == 0)
+    {
+        gVapIsUp = true;
+    }
+}*/
+
+//give gtest for notify_tunnel_status function 
+
+TEST_F(HotspotFdTestFixture, notify_tunnel_status_SUCCESS) {
+    char status[] = "Up";
+
+    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData_rbus(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), StrEq(status)))
+    .Times(1)
+    .WillOnce(Return(CCSP_SUCCESS));
+
+    notify_tunnel_status(status);
+}
+
+TEST_F(HotspotFdTestFixture, notify_tunnel_status_FAIL) {
+    char status[] = "Down";
+
+    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData_rbus(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), StrEq(status)))
+    .Times(1)
+    .WillOnce(Return(1));
+
+    notify_tunnel_status(status);
+}
+
+/*rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* opts)
+{
+    (void)handle;
+    (void)opts;
+
+    CcspTraceInfo(("In %s\n", __FUNCTION__));
+     
+    //set value
+    rbusValue_t val;
+    rbusValue_Init(&val);
+    rbusValue_SetString(val, TunnelStatus);
+    rbusProperty_SetValue(property, val);
+    rbusValue_Release(val);
+    
+    CcspTraceInfo(("Out %s\n", __FUNCTION__));
+    return RBUS_ERROR_SUCCESS;
+}*/
+
+//give gtest for TunnelStatus_GetStringHandler function
+
+TEST_F(HotspotFdTestFixture, TunnelStatus_GetStringHandler) {
+    rbusHandle_t handle = nullptr;
+    rbusProperty_t property;
+    rbusGetHandlerOptions_t* opts = nullptr;
+
+    // Initialize property
+    rbusProperty_Init(&property, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus");
+
+    // Set TunnelStatus to a mock value
+    strncpy(TunnelStatus, "Up", sizeof(TunnelStatus));
+
+    rbusError_t result = TunnelStatus_GetStringHandler(handle, property, opts);
+
+    // Verify the result
+    EXPECT_EQ(RBUS_ERROR_SUCCESS, result);
+
+    // Verify the value set in the property
+    rbusValue_t val = rbusProperty_GetValue(property);
+    const char* strValue = rbusValue_GetString(val, NULL);
+    EXPECT_STREQ("Up", strValue);
+
+    // Release property
+    rbusProperty_Release(property);
+}
+
+TEST_F(HotspotFdTestFixture, TunnelStatus_SetStringHandler_SUCCESS) {
+    rbusHandle_t handle = nullptr;
+    rbusProperty_t property;
+    rbusSetHandlerOptions_t* opts = nullptr;
+
+    // Initialize property with new status "Up"
+    rbusProperty_Init(&property, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus");
+    rbusValue_t val;
+    rbusValue_Init(&val);
+    rbusValue_SetString(val, "Up");
+    rbusProperty_SetValue(property, val);
+    rbusValue_Release(val);
+
+    // Set initial TunnelStatus to "Down"
+    strncpy(TunnelStatus, "Down", sizeof(TunnelStatus));
+
+    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData_rbus(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), StrEq("Up")))
+    .Times(1)
+    .WillOnce(Return(CCSP_SUCCESS));
+
+    rbusError_t result = TunnelStatus_SetStringHandler(handle, property, opts);
+
+    // Verify the result
+    EXPECT_EQ(RBUS_ERROR_SUCCESS, result);
+
+    // Release property
+    rbusProperty_Release(property);
+}
+
+TEST_F(HotspotFdTestFixture, TunnelStatus_SetStringHandler_FAIL) {
+    rbusHandle_t handle = nullptr;
+    rbusProperty_t property;
+    rbusSetHandlerOptions_t* opts = nullptr;
+
+    // Initialize property with new status "Down"
+    rbusProperty_Init(&property, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus");
+    rbusValue_t val;
+    rbusValue_Init(&val);
+    rbusValue_SetString(val, "Down");
+    rbusProperty_SetValue(property, val);
+    rbusValue_Release(val);
+
+    // Set initial TunnelStatus to "Up"
+    strncpy(TunnelStatus, "Up", sizeof(TunnelStatus));
+
+    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData_rbus(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), StrEq("Down")))
+    .Times(1)
+    .WillOnce(Return(1));
+
+    rbusError_t result = TunnelStatus_SetStringHandler(handle, property, opts);
+
+    // Verify the result
+    EXPECT_EQ(RBUS_ERROR_BUS_ERROR, result);
+
+    // Release property
+    rbusProperty_Release(property);
+}
 
 TEST_F(HotspotFdTestFixture, set_validatessid_CASE1) {
     bool result;

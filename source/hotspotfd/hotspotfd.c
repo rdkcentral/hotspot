@@ -376,8 +376,8 @@ STATIC void notify_tunnel_status(char *status)
         CcspTraceError(("Error setting TunnelStatus in TR181 Data Model\n"));
     }*/
 
-    strncpy(TunnelStatus, status, sizeof(TunnelStatus) - 1);
-    TunnelStatus[sizeof(TunnelStatus) - 1] = '\0'; // Ensure null termination
+    strncpy(TunnelStatus, status, strlen(status));
+    TunnelStatus[strlen(status)] = '\0'; // Ensure null termination
     CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
 
     ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
@@ -430,7 +430,7 @@ rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t pr
     {
         if(strcmp(TunnelStatus, newStatus) != 0){
             CcspTraceInfo(("Calling notify_tunnel_status\n"));
-            notify_tunnel_status(TunnelStatus);
+            notify_tunnel_status((char *)newStatus);
         }
         else{
             CcspTraceInfo(("TunnelStatus is already %s, no change needed\n", TunnelStatus));
