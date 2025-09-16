@@ -103,4 +103,7 @@ int confirmVap();
 size_t calculateTimeout(size_t numOfEntries);
 int hotspot_wan_failover(bool isRemoteWANEnabled);
 void recreate_tunnel();
+#if defined (AMENITIES_NETWORK_ENABLED)
+void createAmenityBridges(void);
+#endif /*AMENITIES_NETWORK_ENABLED*/
 #endif
