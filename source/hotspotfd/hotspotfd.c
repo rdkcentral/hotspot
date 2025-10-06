@@ -220,6 +220,7 @@ char gSnoopSyseventCircuitIDs[kSnoop_MaxCircuitIDs][kSnooper_circuit_id_len] = {
 };
 
 #if defined (AMENITIES_NETWORK_ENABLED)
+
 char gAmenitySnoopCircuitIDs[][kSnoop_MaxCircuitLen] = {
     kSNOOPER_AMENITY_CIRCUIT_ID61,
     kSNOOPER_AMENITY_CIRCUIT_ID62,
@@ -1119,6 +1120,7 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
     async_id_t snoop_circuit_ids[kSnoop_MaxCircuitIDs];
     #if defined (AMENITIES_NETWORK_ENABLED)
     async_id_t amenitySnoopCircuitIds [gAmenitySnoopMaxNumberOfClients];
+    async_id_t greStatusAsyncId;
     #endif /* AMENITIES_NETWORK_ENABLED */
     async_id_t snoop_ssids_ids[kSnoop_MaxCircuitIDs];
     async_id_t hotspotfd_current_wan_ipaddr_v4_id;
@@ -1169,6 +1171,7 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
         if (0 != iRet)
             CcspTraceError(("%s:%d,iRet:%d for %s\n",__FUNCTION__,__LINE__, i, gAmenitySnoopCircuitIDs[i]));
     }
+    sysevent_setnotification(sysevent_fd, sysevent_token, "if_gretap0-status", &greStatusAsyncId);
     #endif /* AMENITIES_NETWORK_ENABLED */
     for(i=0; i<kSnoop_MaxCircuitIDs; i++) 
 	{
@@ -1402,6 +1405,37 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
                         return NULL;
                     }
                     break;
+                }
+            }
+            rc = strcmp_s(name, strlength,"if_gretap0-status", &ind);
+            ERR_CHK(rc);
+            if ((ind == 0) && (rc == EOK))
+            {
+                CcspTraceInfo(("%s:%d,if_gretap0-status = %s\n", __FUNCTION__,__LINE__, val));
+                if ( strlen(val) > 0 && strncmp(val, "ready", strlen("ready")) == 0)
+                {
+                    char cCurrEndPoint[kMax_IPAddressLength] = {0};
+                    if (sysevent_get(sysevent_fd_gs, sysevent_token_gs, "gre_current_endpoint" , cCurrEndPoint, sizeof(cCurrEndPoint))){
+                        CcspTraceError(("%s:%d, sysevent_get failed to get gre_current_endpoint\n", __FUNCTION__,__LINE__));
+                    }
+                    if (cCurrEndPoint[0] == '\0' || strncmp("dummy_EP", cCurrEndPoint, strlen("dummy_EP")) == 0) {
+                        CcspTraceInfo(("%s:%d, Tunnels are down previously, no need to recreate\n", __FUNCTION__,__LINE__));
+                    }
+                    else
+                    {
+                        if (strlen(gpPrimaryEP) > 0 && (0 == strncmp(gpPrimaryEP, cCurrEndPoint, strlen(gpPrimaryEP))))
+                        {
+                            CcspTraceInfo(("%s:%d, End Point switched to Primary, do the sync members\n", __FUNCTION__,__LINE__));
+                            //do the multinet sync members for Amenity network
+                            createAmenityBridges();
+                        }
+                        else if ((strlen(gpSecondaryEP) > 0) && (0 == strncmp(gpSecondaryEP, cCurrEndPoint, strlen(gpSecondaryEP))))
+                        {
+                            CcspTraceInfo(("%s:%d, End Point switched to Secondary, do the sync members\n", __FUNCTION__,__LINE__));
+                            //do the multinet sync members for Amenity network
+                            createAmenityBridges();
+                        }
+                    }
                 }
             }
             #endif /* AMENITIES_NETWORK_ENABLED */
