@@ -221,15 +221,6 @@ char gSnoopSyseventCircuitIDs[kSnoop_MaxCircuitIDs][kSnooper_circuit_id_len] = {
 
 #if defined (AMENITIES_NETWORK_ENABLED)
 
-typedef enum
-{
-    PRIMARY_ENDPOINT = 0,
-    SECONDARY_ENDPOINT,
-    NONE
-}eEndPoints;
-
-static eEndPoints eEndPointState = NONE;
-
 char gAmenitySnoopCircuitIDs[][kSnoop_MaxCircuitLen] = {
     kSNOOPER_AMENITY_CIRCUIT_ID61,
     kSNOOPER_AMENITY_CIRCUIT_ID62,
@@ -1434,31 +1425,15 @@ STATIC void *hotspotfd_sysevent_handler(void *data)
                     {
                         if (strlen(gpPrimaryEP) > 0 && (0 == strncmp(gpPrimaryEP, cCurrEndPoint, strlen(gpPrimaryEP))))
                         {
-                            if (NONE == eEndPointState)
-                            {
-                                eEndPointState = PRIMARY_ENDPOINT;
-                            }
-                            else if (SECONDARY_ENDPOINT == eEndPointState)
-                            {
-                                //do the multinet sync members for Amenity network
-                                CcspTraceInfo(("%s:%d, End Point switched to Primary from secondary, do the sync members\n", __FUNCTION__,__LINE__));
-                                createAmenityBridges();
-                                eEndPointState = PRIMARY_ENDPOINT;
-                            }
+                            CcspTraceInfo(("%s:%d, End Point switched to Primary, do the sync members\n", __FUNCTION__,__LINE__));
+                            //do the multinet sync members for Amenity network
+                            createAmenityBridges();
                         }
                         else if ((strlen(gpSecondaryEP) > 0) && (0 == strncmp(gpSecondaryEP, cCurrEndPoint, strlen(gpSecondaryEP))))
                         {
-                            if (NONE == eEndPointState)
-                            {
-                                eEndPointState = SECONDARY_ENDPOINT;
-                            }
-                            else if (PRIMARY_ENDPOINT == eEndPointState)
-                            {
-                                //do the multinet sync members for Amenity network
-                                CcspTraceInfo(("%s:%d, End Point switched to Secondary from primary, do the sync members\n", __FUNCTION__,__LINE__));
-                                createAmenityBridges();
-                                eEndPointState = SECONDARY_ENDPOINT;
-                            }
+                            CcspTraceInfo(("%s:%d, End Point switched to Secondary, do the sync members\n", __FUNCTION__,__LINE__));
+                            //do the multinet sync members for Amenity network
+                            createAmenityBridges();
                         }
                     }
                 }
