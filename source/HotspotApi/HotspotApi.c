@@ -137,6 +137,11 @@ bool tunnel_param_synchronize() {
     }
 #endif
 
+   if(NULL != tunnelSet){
+       free(tunnelSet);
+       tunnelSet = NULL;
+   }
+   
     return TRUE;
 }
 
@@ -907,14 +912,8 @@ int prepareFirstRollback(){
     ret  = jansson_store_tunnel_info(NULL);
     CcspTraceInfo(("HOTSPOT_LIB : %s Ret status.......%d \n", __FUNCTION__, ret));
 
-    if(ret > 0){
-       if(ret == 2){
-           return ret;
-       }
-       return ret;
-    }else{
-       return ret;    
-    }
+    return ret;    
+    
 //TODO: Find the delta and then store if needed
 }
 

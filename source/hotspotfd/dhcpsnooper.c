@@ -882,6 +882,7 @@ static int snoop_removeRelayAgentOptions(struct dhcp_packet *packet, unsigned le
 {
     UNREFERENCED_PARAMETER(queue_number);
     int  mms,count = 0;
+    int l_iSkipBytes = 0;
     //int  is_dhcp=0;
 
     u_int8_t *op = NULL, *nextop = NULL, *sp = NULL, *max = NULL, *end_pad = NULL;
@@ -944,7 +945,7 @@ static int snoop_removeRelayAgentOptions(struct dhcp_packet *packet, unsigned le
 
         case DHO_DHCP_AGENT_OPTIONS:
 			msg_debug("DHCP packet length before option-82 removal is:%d\n", length);
-			int l_iSkipBytes = *(op + 1) + 2;
+			l_iSkipBytes = *(op + 1) + 2;
 			nextop = op + op[1] + 2;
             if (nextop > max)
                 return(0);
