@@ -155,7 +155,31 @@ static enum agent_relay_mode_t snoop_getDhcpRelayAgentMode( )
 	return agent_relay_mode;
 }
 #endif
-
+#if defined (AMENITIES_NETWORK_ENABLED)
+static BOOL isValidAmenityQueue(int queue_number, int *pIndex)
+{
+    if (NULL == pIndex)
+    {
+        CcspTraceError(("%s:%d, pIndex is NULL\n", __FUNCTION__, __LINE__));
+        return FALSE;
+    }
+    if (queue_number >= AMENITY_QUEUE_BEGIN && queue_number <= AMENITY_QUEUE_END)
+    {
+        int iIndex = queue_number - AMENITY_QUEUE_BEGIN;
+        if (iIndex < 0 || iIndex >= gAmenitySnoopMaxNumberOfClients)
+        {
+            CcspTraceError(("Invalid queue number: %d\n", queue_number));
+            *pIndex = -1;
+        }
+        else
+        {
+            *pIndex = iIndex;
+        }
+        return TRUE;
+    }
+    return FALSE;
+}
+#endif /*AMENITIES_NETWORK_ENABLED*/
 static void snoop_AddClientListHostname(char *pHostname, char *pRemote_id, int queue_number)
 {
     snooper_priv_client_list * pNewClient;
@@ -188,14 +212,38 @@ static void snoop_AddClientListHostname(char *pHostname, char *pRemote_id, int q
     }
         /* Coverity Fix CID:135307 STRING_OVERFLOW */
         /* Coverity Fix CID:64398 DC. STRING_BUFFER */
-        rc = strcpy_s(g_cHostnameForQueue[queue_number], sizeof(g_cHostnameForQueue[queue_number]), pHostname);
-                if(rc != EOK)
-                {
-                        ERR_CHK(rc);
-                        pthread_mutex_unlock(&global_stats_mutex);
-                        return;
-                }
-        g_cHostnameForQueue[queue_number][sizeof(g_cHostnameForQueue[queue_number]) - 1] = '\0';
+        #if defined (AMENITIES_NETWORK_ENABLED)
+        int iIndex = -1;
+        if (TRUE == isValidAmenityQueue(queue_number, &iIndex))
+        {
+            if (iIndex == -1)
+            {
+                CcspTraceError(("%s:%d, Invalid Amenity Queue Number %d\n", __FUNCTION__, __LINE__, queue_number));
+                pthread_mutex_unlock(&global_stats_mutex);
+                return;
+            }
+            rc = strcpy_s(g_cAmenityHostnameForQueue[iIndex], sizeof(g_cAmenityHostnameForQueue[iIndex]), pHostname);
+            if(rc != EOK)
+            {
+                ERR_CHK(rc);
+                pthread_mutex_unlock(&global_stats_mutex);
+                return;
+            }
+            g_cAmenityHostnameForQueue[iIndex][sizeof(g_cAmenityHostnameForQueue[iIndex]) - 1] = '\0';
+            CcspTraceInfo(("Amenity Client:%s is present update hostname:%s\n", pRemote_id, pHostname));
+        }
+        else
+        #endif /* AMENITIES_NETWORK_ENABLED */
+        {
+            rc = strcpy_s(g_cHostnameForQueue[queue_number], sizeof(g_cHostnameForQueue[queue_number]), pHostname);
+            if(rc != EOK)
+            {
+                ERR_CHK(rc);
+                pthread_mutex_unlock(&global_stats_mutex);
+                return;
+            }
+            g_cHostnameForQueue[queue_number][sizeof(g_cHostnameForQueue[queue_number]) - 1] = '\0';
+        }
         pthread_mutex_unlock(&global_stats_mutex);
 }
 
@@ -560,7 +608,11 @@ void snoop_log(void)
     for(i=gSnoopFirstQueueNumber; i < gSnoopNumberOfQueues+gSnoopFirstQueueNumber; i++) {
         fprintf(logOut, "gSnoopCircuitIDList[%d]: %s\n", i, gSnoopCircuitIDList[i]);
     }
-
+#if defined (AMENITIES_NETWORK_ENABLED)
+    for(i=0; i < gAmenitySnoopMaxNumberOfClients; i++) {
+        fprintf(logOut, "gAmenitySnoopCircuitIDList[%d]: %s\n", i, gAmenitySnoopCircuitIDList[i]);
+    }
+#endif /* AMENITIES_NETWORK_ENABLED */
     fprintf(logOut, "kSnoop_MaxNumberOfQueues: %d\n", kSnoop_MaxNumberOfQueues);
     fprintf(logOut, "gSnoopNumCapturedPackets: %d\n", gSnoopNumCapturedPackets);
 
@@ -1033,7 +1085,19 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
     if (((pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Request) || (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Discover) ||
          (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Decline) || (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Release) || (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Inform))
         && gSnoopEnable && (gSnoopCircuitEnabled || gSnoopRemoteEnabled)) {
-                                                           
+#if defined (AMENITIES_NETWORK_ENABLED)
+        int iIndex = -1;
+        if (TRUE == isValidAmenityQueue(queue_number, &iIndex))
+        {
+            if (iIndex == -1)
+            {
+                CcspTraceError(("%s:%d, Invalid Amenity Queue Number %d\n", __FUNCTION__, __LINE__, queue_number));
+                return -1;
+            }
+            rc = strcpy_s(gCircuit_id, sizeof(gCircuit_id), gAmenitySnoopCircuitIDList[iIndex]);
+        }
+        else
+#endif
         rc = strcpy_s(gCircuit_id, sizeof(gCircuit_id), gSnoopCircuitIDList[queue_number]);
 		if(rc != EOK)
 		{
@@ -1041,7 +1105,6 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 			return -1;
 		}
         msg_debug("gCircuit_id: %s\n", gCircuit_id);
-
         sprintf(gRemote_id, "%02x:%02x:%02x:%02x:%02x:%02x", 
                 pktData[56], pktData[57], pktData[58], pktData[59], pktData[60], pktData[61]); 
         msg_debug("gRemote_id: %s\n", gRemote_id);
@@ -1113,6 +1176,19 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 		if (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Inform) 
 		{
 			inet_ntop(AF_INET, &(pktData[40]), ipv4_addr, INET_ADDRSTRLEN);
+            #if defined (AMENITIES_NETWORK_ENABLED)
+            int iIndex = -1;
+            if (TRUE == isValidAmenityQueue(queue_number, &iIndex))
+            {
+                if (iIndex == -1)
+                {
+                    CcspTraceError(("%s:%d, Invalid Amenity Queue Number %d\n", __FUNCTION__, __LINE__, queue_number));
+                    return -1;
+                }
+                rc = strcpy_s(g_cAmenityInformIpForQueue[iIndex], sizeof(g_cAmenityInformIpForQueue[iIndex]), ipv4_addr);
+            }
+            else
+            #endif
 			rc = strcpy_s(g_cInformIpForQueue[queue_number], sizeof(g_cInformIpForQueue[queue_number]), ipv4_addr);
 		    if(rc != EOK)
 		    {
@@ -1200,6 +1276,20 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 
 			if( pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_ACK) 
 			{
+                #if defined (AMENITIES_NETWORK_ENABLED)
+                int iIndex = -1;
+                BOOL isAmenityEnabled = isValidAmenityQueue(queue_number, &iIndex);
+                if (TRUE == isAmenityEnabled)
+                {
+                    if (iIndex == -1)
+                    {
+                        CcspTraceError(("%s:%d, Invalid Amenity Queue Number %d\n", __FUNCTION__, __LINE__, queue_number));
+                        return -1;
+                    }
+                    rc = strcpy_s(gCircuit_id, sizeof(gCircuit_id), gAmenitySnoopCircuitIDList[iIndex]);
+                }
+                else
+                #endif
 				rc = strcpy_s(gCircuit_id, sizeof(gCircuit_id), gSnoopCircuitIDList[queue_number]);
 		        if(rc != EOK)
 		        {
@@ -1215,21 +1305,30 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 
 				inet_ntop(AF_INET, &(pktData[44]), ipv4_addr, INET_ADDRSTRLEN);
 				char l_cHostName[kSnooper_MaxHostNameLen];
-				if (!snoop_isValidIpAddress(ipv4_addr) && snoop_isValidIpAddress(g_cInformIpForQueue[queue_number]))
-				{
-					rc = strcpy_s(ipv4_addr, sizeof(ipv4_addr), g_cInformIpForQueue[queue_number]);
-		            if(rc != EOK)
-		            {
-		            	ERR_CHK(rc);
-			            return -1;
-		            }
-					CcspTraceWarning(("ipaddress in DHCP ACK is 0.0.0.0 get it from inform:%s\n", ipv4_addr));					
-					if (!snoop_isValidIpAddress(ipv4_addr))
-					{
-						CcspTraceWarning(("IP Address in DHCP Inform is also not valid something went wrong"));
-					}
-				}
-				rc = strcpy_s(l_cHostName, sizeof(l_cHostName), g_cHostnameForQueue[queue_number]);
+                char *pInformIp = g_cInformIpForQueue[queue_number];
+                char *pHostname = g_cHostnameForQueue[queue_number];
+                #if defined (AMENITIES_NETWORK_ENABLED)
+                if (TRUE == isAmenityEnabled)
+                {
+                    pInformIp = g_cAmenityInformIpForQueue[iIndex];
+                    pHostname = g_cAmenityHostnameForQueue[iIndex];
+                }
+                #endif
+                if (!snoop_isValidIpAddress(ipv4_addr) && snoop_isValidIpAddress(pInformIp))
+                {
+                    rc = strcpy_s(ipv4_addr, sizeof(ipv4_addr), pInformIp);
+                    if(rc != EOK)
+                    {
+                        ERR_CHK(rc);
+                        return -1;
+                    }
+                    CcspTraceWarning(("ipaddress in DHCP ACK is 0.0.0.0 get it from inform:%s\n", ipv4_addr));
+                    if (!snoop_isValidIpAddress(ipv4_addr))
+                    {
+                        CcspTraceWarning(("IP Address in DHCP Inform is also not valid something went wrong"));
+                    }
+                }
+				rc = strcpy_s(l_cHostName, sizeof(l_cHostName), pHostname);
 		        if(rc != EOK)
 		        {
 		          	ERR_CHK(rc);
@@ -1331,6 +1430,27 @@ void *dhcp_snooper_init(void *data)
         }
     }
 
+    #if defined (AMENITIES_NETWORK_ENABLED)
+    int iVar = 0;
+    for (i = 0; i < gAmenitySnoopMaxNumberOfClients; i++, iVar++)
+    {
+        gAmenityQueueNums[iVar] = AMENITY_QUEUE_BEGIN + i;
+        CcspTraceInfo(("%s:%d, i:%d, queueNum:%d\n", __FUNCTION__, __LINE__, i, gAmenityQueueNums[iVar]));
+        if (!(myQueue = nfq_create_queue(nfqHandle, gAmenityQueueNums[iVar], &snoop_packetHandler, &(gAmenityQueueNums[iVar]))))
+        {
+            CcspTraceError(("%s:%d> Error in nfq_create_queue(): %p\n", __FUNCTION__, __LINE__, myQueue));
+        }
+        else
+        {
+            msg_debug("Registered packet handler for queue %d\n", gAmenityQueueNums[iVar]);
+            // Turn on packet copy mode
+            if ((status = nfq_set_mode(myQueue, NFQNL_COPY_PACKET, 0xffff)) < 0)
+            {
+                CcspTraceError(("%s:%d> Error in nfq_set_mode(): %d\n", __FUNCTION__, __LINE__, status));
+            }
+        }
+    }
+    #endif /* AMENITIES_NETWORK_ENABLED */
     netlinkHandle = nfq_nfnlh(nfqHandle);
     fd = nfnl_fd(netlinkHandle);
     msg_debug("%s fd=%d\n", __func__, fd);
