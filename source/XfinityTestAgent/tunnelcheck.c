@@ -314,56 +314,52 @@ void delete_testinterfaces(void){
     fprintf(xfinitylogfp,"%s : HOTSPOT_HEALTHCHECK : VLAN %s is removed\n",timestamputc(timestr), vlan_id);
 }
 
-int parse_if_inet6(const char* ifname){
+int parse_if_inet6(const char* ifname) {
     FILE *inet6_fp;
     int scope, prefix;
     unsigned char ipv6_addr[16];
     char dname[IFNAMSIZ];
     char address[INET6_ADDRSTRLEN];
     char timestr[30];
+    char line[256];  // Large enough to hold a line from /proc/net/if_inet6
 
     inet6_fp = fopen("/proc/net/if_inet6", "r");
     if (inet6_fp == NULL) {
         return 0;
     }
 
-/* We are storing each line in if_inet6 into 19 variables */
-        char fmt[256];
-        /* build a format string that bounds the %s field to IFNAMSIZ-1 to avoid buffer overflow */
-        /*
-         * Read each byte of the 32-hex-digit IPv6 address into an unsigned int
-         * using %2x (which expects unsigned int*), then copy into the
-         * unsigned char ipv6_addr[16] to avoid mismatched scanf length modifiers.
-         */
-        unsigned int ipv6_addr_int[16];
-        snprintf(fmt, sizeof(fmt),
-            " %%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x%%2x %%*x %%x %%x %%*x %%%ds",
-            IFNAMSIZ - 1);
+    while (fgets(line, sizeof(line), inet6_fp)) {
+        // Clear buffers before parsing
+        memset(ipv6_addr, 0, sizeof(ipv6_addr));
+        memset(dname, 0, sizeof(dname));
 
-        while (19 == fscanf(inet6_fp, fmt,
-                            &ipv6_addr_int[0], &ipv6_addr_int[1], &ipv6_addr_int[2], &ipv6_addr_int[3], &ipv6_addr_int[4], &ipv6_addr_int[5], &ipv6_addr_int[6], &ipv6_addr_int[7],
-                            &ipv6_addr_int[8], &ipv6_addr_int[9], &ipv6_addr_int[10], &ipv6_addr_int[11], &ipv6_addr_int[12], &ipv6_addr_int[13], &ipv6_addr_int[14],
-                            &ipv6_addr_int[15], &prefix, &scope, dname))
-    {
-        /* copy the parsed integers into the byte array */
-        int _i;
-        for (_i = 0; _i < 16; _i++) {
-            ipv6_addr[_i] = (unsigned char)(ipv6_addr_int[_i] & 0xFF);
-        }
+        if (sscanf(line,
+                   " %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx"
+                   "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx"
+                   " %*x %x %x %*x %15s",  // limit to 15 chars + null
+                   &ipv6_addr[0], &ipv6_addr[1], &ipv6_addr[2], &ipv6_addr[3],
+                   &ipv6_addr[4], &ipv6_addr[5], &ipv6_addr[6], &ipv6_addr[7],
+                   &ipv6_addr[8], &ipv6_addr[9], &ipv6_addr[10], &ipv6_addr[11],
+                   &ipv6_addr[12], &ipv6_addr[13], &ipv6_addr[14], &ipv6_addr[15],
+                   &prefix, &scope, dname) == 19)
+        {
+            dname[IFNAMSIZ - 1] = '\0';  // Ensure null termination
 
-        if (strcmp(ifname, dname) != 0) {
-         /* Search for the line with the details of test interface */
-            continue;
-        }
+            if (strcmp(ifname, dname) != 0) {
+                continue;
+            }
 
-        if (inet_ntop(AF_INET6, ipv6_addr, address, sizeof(address)) == NULL) {
-            continue;
-        }
+            if (inet_ntop(AF_INET6, ipv6_addr, address, sizeof(address)) == NULL) {
+                continue;
+            }
 
-        if(scope == IPV6_ADDR_GLOBAL){
-            fprintf(xfinitylogfp,"%s : HOTSPOT_HEALTHCHECK : IPv6_XfinityHealthCheck_slaac_completed, address assigned is %s\n",timestamputc(timestr),address);
-            fclose(inet6_fp);
-            return 1;
+            if (scope == IPV6_ADDR_GLOBAL) {
+                fprintf(xfinitylogfp,
+                        "%s : HOTSPOT_HEALTHCHECK : IPv6_XfinityHealthCheck_slaac_completed, address assigned is %s\n",
+                        timestamputc(timestr), address);
+                fclose(inet6_fp);
+                return 1;
+            }
         }
     }
 
