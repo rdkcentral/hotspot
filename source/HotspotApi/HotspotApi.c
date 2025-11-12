@@ -348,6 +348,7 @@ int create_tunnel(char *gre_primary_endpoint){
    int    ip_version = -1;
 
          CcspTraceInfo(("HOTSPOT_LIB : Entering %s ...gSyseventfd = %d \n", __FUNCTION__, gSyseventfd));
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
          if (0 == gSyseventfd){
              retValue =  gre_sysevent_syscfg_init();
              if(1 == retValue){
@@ -372,6 +373,7 @@ int create_tunnel(char *gre_primary_endpoint){
             // Qualcomm only support adding tunnel with local IP
             char local_Ipv4Address[INET_ADDRSTRLEN] = {0};
             int timeOut = 60;
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
 	    while(!is_wan_started() && timeOut > 0)
             {
               CcspTraceWarning(("HOTSPOT_LIB : Waiting %dsec for wan to start\n",timeOut));
@@ -920,6 +922,7 @@ int prepareFirstRollback(){
 
 bool prevalidateHotspotBlob(tunneldoc_t *pGreTunnelData)
 {
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
     int index = 0;
     int vlanid = 0;
     if((validateIpAddress(pGreTunnelData->entries->gre_primary_endpoint) != 1))
@@ -960,7 +963,7 @@ bool prevalidateHotspotBlob(tunneldoc_t *pGreTunnelData)
 
 int compareTunnelConfig(){
 
-    CcspTraceInfo(("HOTSPOT_LIB : Entering  %s\n", __FUNCTION__));
+    CcspTraceInfo(("SR HOTSPOT_LIB : Entering  %s isFirst  %s \n", __FUNCTION__,oldTunnelData.isFirst));
     int return_status = 0;
     int ind = -1;
     errno_t rc = -1;
@@ -972,12 +975,14 @@ int compareTunnelConfig(){
        return return_status;
 #else
        return_status = PRIMARY_EP_CHANGED | SECONDARY_EP_CHANGED | VLAN_CHANGE_1 | VLAN_CHANGE_2 | VLAN_CHANGE_3 | VLAN_CHANGE_4;
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d return_status %d\n", __FUNCTION__,__LINE__,return_status));
        return return_status;
 #endif
     }
 
     if (oldTunnelData.gre_enable != tempTunnelData->entries->gre_enable) {
         return_status |= GRE_ENABLE_CHANGE;
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d return_status %d\n", __FUNCTION__,__LINE__,return_status));
         CcspTraceInfo(("HOTSPOT_LIB : gre_enable changed: %d -> %d\n", oldTunnelData.gre_enable, tempTunnelData->entries->gre_enable));
     }
 
@@ -985,6 +990,7 @@ int compareTunnelConfig(){
     ERR_CHK(rc);
     if ((ind != 0) && (rc == EOK)) {
         return_status |= PRIMARY_EP_CHANGED;
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
         CcspTraceInfo(("HOTSPOT_LIB : gre_primary_endpoint changed: %s -> %s\n", oldTunnelData.primaryEP, tempTunnelData->entries->gre_primary_endpoint));
     }
 
@@ -992,11 +998,14 @@ int compareTunnelConfig(){
     ERR_CHK(rc);
     if ((ind != 0) && (rc == EOK)) {
         return_status |= SECONDARY_EP_CHANGED;
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
         CcspTraceInfo(("HOTSPOT_LIB : gre_sec_endpoint changed: %s -> %s\n", oldTunnelData.secondaryEP, tempTunnelData->entries->gre_sec_endpoint));
     }
     for (int i = 0; i < tempTunnelData->entries->table_param->entries_count; i++){
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d i = %d\n", __FUNCTION__,__LINE__,i));
         if (oldTunnelData.Vlans[i] != tempTunnelData->entries->table_param->entries[i].wan_vlan) {
             return_status |= VLAN_CHANGE_BASE << (i + 1);
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
             CcspTraceInfo(("HOTSPOT_LIB : vlan_interface_%d changed: %d -> %d\n", i+1, oldTunnelData.Vlans[i], tempTunnelData->entries->table_param->entries[i].wan_vlan));
     }
     }
@@ -1021,6 +1030,7 @@ pErr setHotspot(void* const network){
 //hotspot was enabled , if so store the previous configuration for the rollback 
 //Check with Wifi team also , if they woudl be able to rollback to previous
 
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
      CcspTraceInfo(("HOTSPOT_LIB : Entering %s function....... \n", __FUNCTION__));
      execRetVal = (pErr) malloc (sizeof(Err));
      if (execRetVal == NULL ){
@@ -1039,6 +1049,7 @@ pErr setHotspot(void* const network){
      tempTunnelData = (tunneldoc_t *)malloc(sizeof(tunneldoc_t));
      memcpy(tempTunnelData, pGreTunnelData, sizeof(tunneldoc_t));
  
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d PSM_HOTSPOT_ENABLE %s \n", __FUNCTION__,__LINE__,PSM_HOTSPOT_ENABLE));
      PsmGet(PSM_HOTSPOT_ENABLE, val, sizeof(val));
      file_status = access(N_HOTSPOT_JSON, F_OK);
      CcspTraceInfo(("HOTSPOT_LIB : %s Existing Xfinity settings: enabled == %s jsone file_status = %d....... \n", __FUNCTION__, val, file_status));
@@ -1063,6 +1074,7 @@ pErr setHotspot(void* const network){
             CcspTraceInfo(("HOTSPOT_LIB : Previously Xfinity was disabled, no need to prepare rollback data  %s \n", __FUNCTION__));
           }
      }
+    CcspTraceInfo(("SR HOTSPOT_LIB : paramsChanged %d\n",paramsChanged));
      paramsChanged = compareTunnelConfig();
      CcspTraceInfo(("HOTSPOT_LIB : return status of the params changed...  %d \n", paramsChanged));
 
@@ -1072,6 +1084,7 @@ pErr setHotspot(void* const network){
          gXfinityEnable = oldTunnelData.gre_enable;
          CcspTraceInfo(("HOTSPOT_LIB : Creating /tmp/.hotspot_blob_inprogress\n"));
          sys_execute_cmd("touch /tmp/.hotspot_blob_inprogress");
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
          execRetVal->ErrorCode = BLOB_EXEC_SUCCESS;
          return execRetVal;
      }
@@ -1080,6 +1093,7 @@ pErr setHotspot(void* const network){
  
          if (0 == gSyseventfd){
              retValue =  gre_sysevent_syscfg_init();
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
              if(1 == retValue){
                    CcspTraceError(("HOTSPOT_LIB : Sysevent failed in set Hotspot \n"));
                    execRetVal->ErrorCode = BLOB_EXEC_FAILURE;
@@ -1106,6 +1120,7 @@ pErr setHotspot(void* const network){
          }
          else
          {
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
              strncpy(gSecEndptIP, pGreTunnelData->entries->gre_sec_endpoint,SIZE_OF_IP - 1);
          }
          gXfinityEnable = true;
@@ -1116,6 +1131,7 @@ pErr setHotspot(void* const network){
     /* Deleting existing Tunnels*/
          //deleteVaps();
          if ((paramsChanged & PRIMARY_EP_CHANGED) || (paramsChanged & SECONDARY_EP_CHANGED) || (paramsChanged & GRE_ENABLE_CHANGE)){
+       CcspTraceInfo(("SR HOTSPOT_LIB : in Fun %s at line %d \n", __FUNCTION__,__LINE__));
              epChanged = true;
              if((oldTunnelData.isFirst == false) && (oldTunnelData.gre_enable == true)){
                  CcspTraceInfo(("HOTSPOT_LIB : deleting the gre tunnel...\n"));
