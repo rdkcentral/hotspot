@@ -883,6 +883,12 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
         option_type=offer_packet->options[itr1++];
         option_length=offer_packet->options[itr1++];
 
+        /* check bounds after incrementing itr1 twice */
+        if(itr1 >= MAX_DHCP_OPTIONS_LENGTH)
+        {
+            break;
+        }
+
         /* get option data */
         if(option_type==DHCP_OPTION_MESSAGE_TYPE)
         {
@@ -892,6 +898,11 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
         /* skip the unnecessary data */
         else
         {
+            /* check if incrementing by option_length would exceed bounds */
+            if(itr1 + option_length > MAX_DHCP_OPTIONS_LENGTH)
+            {
+                break;
+            }
             for(itr2=0;itr2<(int)option_length;itr2++,itr1++);
         }
     }
