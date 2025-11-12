@@ -930,12 +930,14 @@ uint32_t get_dhcp_server_identifier(dhcp_packet *offer_packet)
         /* get option data */
         if(option_type==DHCP_OPTION_SERVER_IDENTIFIER)
         {
+            if (itr1 + sizeof(struct in_addr) > MAX_DHCP_OPTIONS_LENGTH) break;
             memcpy(&server_ip, &offer_packet->options[itr1], sizeof(struct in_addr));
             return server_ip.s_addr;
         }
         /* skip the unnecessary data */
         else
         {
+            if (itr1 + option_length > MAX_DHCP_OPTIONS_LENGTH) break;
             for(itr2=0;itr2<(int)option_length;itr2++,itr1++);
         }
     }
