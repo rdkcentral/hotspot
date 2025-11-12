@@ -504,7 +504,6 @@ int send_dhcp_discover(int sock, int ifindex){
     dhcp_discover_packet.data.hlen=ETHERNET_HARDWARE_ADDRESS_LENGTH;
     dhcp_discover_packet.data.hops=0;
     /* create a random transaction ID */
-    srand(time(NULL));
     packet_xid=get_secure_random_xid();
     dhcp_discover_packet.data.xid=htonl(packet_xid);
     dhcp_discover_packet.data.secs=0;
@@ -631,7 +630,6 @@ int send_dhcp_release(int sock, offer_info ackinfo, int ifindex){
     release_packet.data.hlen=ETHERNET_HARDWARE_ADDRESS_LENGTH;
     release_packet.data.hops=0;
     /* A random transaction ID is generated */
-    srand(time(NULL));
     packet_xid=get_secure_random_xid();
     release_packet.data.xid=htonl(packet_xid);
     release_packet.data.secs=0;
