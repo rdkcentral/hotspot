@@ -404,6 +404,7 @@ int get_hardware_address(int sock,char *interface_name){
     struct ifreq ifr;
 
     strncpy((char *)&ifr.ifr_name,interface_name,IFNAMSIZ - 1);
+    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
     /* get the hardware address of the test interface */
     if(ioctl(sock,SIOCGIFHWADDR,&ifr)<0){
         fprintf(xfinitylogfp,"Could not get the hardware address of interface '%s'\n",interface_name);
