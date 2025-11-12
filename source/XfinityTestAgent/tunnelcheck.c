@@ -872,7 +872,7 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
     /* Go through all DHCP options present */
     for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH;){
 
-        if(itr1+2 >= MAX_DHCP_OPTIONS_LENGTH ){
+        if(itr1+3 > MAX_DHCP_OPTIONS_LENGTH ){
             break;
         }
         
