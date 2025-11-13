@@ -195,7 +195,7 @@ rbusHandle_t handle;
 
 STATIC pthread_t dhcp_snooper_tid;
 
-char TunnelStatus[128] = {0};
+char TunnelStatus[8] = {0};
 
 int gSnoopNumberOfClients = 0; //shared variable across hotspotfd and dhcp_snooperd
 
@@ -310,60 +310,6 @@ HotspotfdType Get_HotspotfdType(char * name)
     return HOTSPOTFD_ERROR;
 }
 
-#if 0
-STATIC bool set_tunnelstatus(char* status) {
-
-    CCSP_MESSAGE_BUS_INFO *bus_info = (CCSP_MESSAGE_BUS_INFO *)bus_handle;
-    parameterValStruct_t  *param_val = NULL;
-    char  component[256]  = "eRT.com.cisco.spvtg.ccsp.pam";
-    char dstPath[64]="/com/cisco/spvtg/ccsp/pam";
-    const char tunparam[]="Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus";
-    char* faultParam      = NULL;
-    int   ret             = 0;
-
-    param_val  = (parameterValStruct_t*)malloc(sizeof(parameterValStruct_t));
-    if (NULL == param_val)
-    {
-        CcspTraceError(("Memory allocation failed in hotspot \n"));
-        return FALSE;
-    }
-
-    param_val->parameterName = (char*)tunparam;
-    param_val->parameterValue=AnscCloneString(status);
-    CcspTraceInfo(("Setting tunnel status to %s\n", status));
-    param_val->type = ccsp_string;
-
-    ret = CcspBaseIf_setParameterValues(
-            bus_handle,
-            component,
-            dstPath,
-            0,
-            0,
-            param_val,
-            1,
-            TRUE,
-            &faultParam
-            );
-
-    if( ( ret != CCSP_SUCCESS ) && ( faultParam!=NULL )) {
-            CcspTraceError(("TunnelStatus set bus failed\n"));
-            bus_info->freefunc( faultParam );
-            if(param_val)
-            {
-                 free(param_val);
-                 param_val = NULL;
-            }
-            return FALSE;
-    }
-    if(param_val)
-    {
-        free(param_val);
-        param_val = NULL;
-    }
-    return TRUE;
-}
-#endif
-
 STATIC void notify_tunnel_status(char *status)
 {
     rbusEvent_t event;
@@ -373,7 +319,7 @@ STATIC void notify_tunnel_status(char *status)
 
     strncpy(TunnelStatus, status, sizeof(TunnelStatus) - 1);
     TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
-    CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
+    CcspTraceInfo(("%s:%d : TunnelStatus set to %s\n", __FUNCTION__, __LINE__, TunnelStatus));
 
     rbusValue_Init(&value);
     rbusValue_SetString(value, status);
@@ -385,11 +331,12 @@ STATIC void notify_tunnel_status(char *status)
     event.data = data;
      
     ret = rbusEvent_Publish(handle, &event);
+    
     if(ret != RBUS_ERROR_SUCCESS) {
-        CcspTraceError(("rbusEvent_Publish failed: %d\n", ret));
-    }
+        CcspTraceError(("%s:%d : rbusEvent_Publish failed: %d\n", __FUNCTION__, __LINE__, ret));
+    } 
     else {
-        CcspTraceInfo(("rbusEvent_Publish success\n"));
+        CcspTraceInfo(("%s:%d : rbusEvent_Publish success\n", __FUNCTION__, __LINE__));
     }
 
     rbusValue_Release(value);
@@ -409,8 +356,6 @@ rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t pr
 {
     (void)handle;
     (void)opts;
-
-    CcspTraceInfo(("In %s\n", __FUNCTION__));
      
     //set value
     rbusValue_t val;
@@ -419,7 +364,6 @@ rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t pr
     rbusProperty_SetValue(property, val);
     rbusValue_Release(val);
     
-    CcspTraceInfo(("Out %s\n", __FUNCTION__));
     return RBUS_ERROR_SUCCESS;
 }
 
@@ -427,29 +371,31 @@ rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t pr
 {
     (void)handle;
     (void)opts;
-   
-    CcspTraceInfo(("In %s\n", __FUNCTION__));
+
+    int ret = RBUS_ERROR_SUCCESS;
 
     rbusValue_t value = rbusProperty_GetValue(property);
     const char* newStatus = rbusValue_GetString(value, NULL);
+    
     if(newStatus && (strcmp(newStatus, "Up") == 0 || strcmp(newStatus, "Down") == 0))
     {
         if(strcmp(TunnelStatus, newStatus) != 0){
-            CcspTraceInfo(("Calling notify_tunnel_status\n"));
+            
+            CcspTraceInfo(("%s:%d : Calling notify_tunnel_status with %s\n", __FUNCTION__, __LINE__, newStatus));
+
             notify_tunnel_status((char *)newStatus);
         }
         else{
-            CcspTraceInfo(("TunnelStatus is already %s, no change needed\n", TunnelStatus));
+            CcspTraceInfo(("%s:%d : TunnelStatus is already %s, no change\n", __FUNCTION__, __LINE__, TunnelStatus));
         }
     }
     else
     {
-        CcspTraceError(("Invalid TunnelStatus value: %s\n", newStatus? newStatus : "NULL"));
-        return RBUS_ERROR_INVALID_INPUT;
+        CcspTraceError(("%s:%d : Invalid TunnelStatus value: %s\n", __FUNCTION__, __LINE__, newStatus ? newStatus : "NULL"));
+        ret = RBUS_ERROR_INVALID_INPUT;
     }
 
-    CcspTraceInfo(("Out %s\n", __FUNCTION__));
-    return RBUS_ERROR_SUCCESS;
+    return ret;
 }
 
 STATIC bool set_validatessid() {
@@ -2122,13 +2068,13 @@ void hotspot_start()
     ret = rbus_regDataElements(handle, 1, dataElements);
     if(ret != RBUS_ERROR_SUCCESS)
     {
-        CcspTraceError(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus rbus_regDataElements failed: %d\n", ret));
+        CcspTraceError(("%d : Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus rbus_regDataElements failed: %d\n", __LINE__, ret));
         return;
     }
     else{
-        CcspTraceInfo(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus"));
+        CcspTraceInfo(("%d : Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus", __LINE__));
     }
-    sleep(1);
+
     pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
 
 #endif

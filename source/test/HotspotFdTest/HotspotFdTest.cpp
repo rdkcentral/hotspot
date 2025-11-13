@@ -421,24 +421,6 @@ TEST_F(HotspotFdTestFixture, deleteSharedMem_CASE_2) {
     EXPECT_EQ(true, result);
 }
 
-/*TEST_F(HotspotFdTestFixture, set_tunnelstatus) {
-    bool result;
-    char status[] = "Up";
-    char mockFaultParam[] = "TRUE";
-
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-
-    result = set_tunnelstatus(status);
-    EXPECT_EQ(true, result);
-}*/
-
 TEST_F(HotspotFdTestFixture, notify_tunnel_status) {
     char status[] = "Up";
 
