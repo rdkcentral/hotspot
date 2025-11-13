@@ -405,9 +405,15 @@ STATIC bool set_validatessid() {
     {
        if(ssid_reset_mask & (1<<i))
        {
-           strcat_s(enabled_ssids, sizeof(enabled_ssids), hotspot_ssids[i]);
+           if (strcat_s(enabled_ssids, sizeof(enabled_ssids), hotspot_ssids[i]) != 0) {
+                CcspTraceError(("Failed to append SSID %s to enabled_ssids\n", hotspot_ssids[i]));
+                return FALSE;
+           }
            CcspTraceInfo(("SSID %s should be enabled\n", hotspot_ssids[i]));
-           strcat_s(enabled_ssids, sizeof(enabled_ssids), " ");
+           if (strcat_s(enabled_ssids, sizeof(enabled_ssids), " ") != 0) {
+               CcspTraceError(("Failed to append space to enabled_ssids\n"));
+               return FALSE;
+           }
        }
        else
        {
@@ -1067,7 +1073,8 @@ STATIC bool hotspot_check_wan_failover_status(char *val)
      char cbuff[20]={0};
      bool isRemoteWANEnabled = false;
 
-     strncpy(cbuff, val, sizeof(cbuff));
+     strncpy(cbuff, val, sizeof(cbuff) - 1);
+     cbuff[sizeof(cbuff) - 1] = '\0';
      CcspTraceInfo(("HotspotTunnelEvent : %s New value of CurrentActiveInterface is -= %s\n",__FUNCTION__, cbuff));
      isRemoteWANEnabled = hotspot_isRemoteWan(cbuff);
      hotspot_wan_failover(isRemoteWANEnabled);
