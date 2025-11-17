@@ -314,52 +314,39 @@ void delete_testinterfaces(void){
     fprintf(xfinitylogfp,"%s : HOTSPOT_HEALTHCHECK : VLAN %s is removed\n",timestamputc(timestr), vlan_id);
 }
 
-int parse_if_inet6(const char* ifname) {
+int parse_if_inet6(const char* ifname){
     FILE *inet6_fp;
     int scope, prefix;
     unsigned char ipv6_addr[16];
     char dname[IFNAMSIZ];
     char address[INET6_ADDRSTRLEN];
     char timestr[30];
-    char line[256];  // Large enough to hold a line from /proc/net/if_inet6
 
     inet6_fp = fopen("/proc/net/if_inet6", "r");
     if (inet6_fp == NULL) {
         return 0;
     }
 
-    while (fgets(line, sizeof(line), inet6_fp)) {
-        // Clear buffers before parsing
-        memset(ipv6_addr, 0, sizeof(ipv6_addr));
-        memset(dname, 0, sizeof(dname));
+/* We are storing each line in if_inet6 into 19 variables */
+    while (19 == fscanf(inet6_fp, " %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx %*x %x %x %*x %15s",
+                        &ipv6_addr[0], &ipv6_addr[1], &ipv6_addr[2], &ipv6_addr[3], &ipv6_addr[4], &ipv6_addr[5], &ipv6_addr[6], &ipv6_addr[7],
+                        &ipv6_addr[8], &ipv6_addr[9], &ipv6_addr[10], &ipv6_addr[11], &ipv6_addr[12], &ipv6_addr[13], &ipv6_addr[14],
+                        &ipv6_addr[15], &prefix, &scope, dname))
+    {
 
-        if (sscanf(line,
-                   " %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx"
-                   "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx"
-                   " %*x %x %x %*x %15s",  // limit to 15 chars + null
-                   &ipv6_addr[0], &ipv6_addr[1], &ipv6_addr[2], &ipv6_addr[3],
-                   &ipv6_addr[4], &ipv6_addr[5], &ipv6_addr[6], &ipv6_addr[7],
-                   &ipv6_addr[8], &ipv6_addr[9], &ipv6_addr[10], &ipv6_addr[11],
-                   &ipv6_addr[12], &ipv6_addr[13], &ipv6_addr[14], &ipv6_addr[15],
-                   &prefix, &scope, dname) == 19)
-        {
-            dname[IFNAMSIZ - 1] = '\0';  // Ensure null termination
+        if (strcmp(ifname, dname) != 0) {
+         /* Search for the line with the details of test interface */
+            continue;
+        }
 
-            if (strcmp(ifname, dname) != 0) {
-                continue;
-            }
+        if (inet_ntop(AF_INET6, ipv6_addr, address, sizeof(address)) == NULL) {
+            continue;
+        }
 
-            if (inet_ntop(AF_INET6, ipv6_addr, address, sizeof(address)) == NULL) {
-                continue;
-            }
-
-            if (scope == IPV6_ADDR_GLOBAL) {
-                fprintf(xfinitylogfp,
-                        "%s : HOTSPOT_HEALTHCHECK : IPv6_XfinityHealthCheck_slaac_completed, address assigned is %s\n",
-                        timestamputc(timestr), address);
-                fclose(inet6_fp);
-                return 1;
-            }
+        if(scope == IPV6_ADDR_GLOBAL){
+            fprintf(xfinitylogfp,"%s : HOTSPOT_HEALTHCHECK : IPv6_XfinityHealthCheck_slaac_completed, address assigned is %s\n",timestamputc(timestr),address);
+            fclose(inet6_fp);
+            return 1;
         }
     }
 
@@ -869,11 +856,7 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
         return -1;
     }
     /* Go through all DHCP options present */
-    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH;){
-
-        if(itr1+2 >= MAX_DHCP_OPTIONS_LENGTH ){
-            break;
-        }
+    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-1;){
         
         if((int)offer_packet->options[itr1]<=0)
         {
@@ -913,11 +896,7 @@ uint32_t get_dhcp_server_identifier(dhcp_packet *offer_packet)
         return 0;
     }
     /* Go through all DHCP options present */
-    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH;){
-
-        if(itr1+2 >= MAX_DHCP_OPTIONS_LENGTH ){
-            break;
-        }
+    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-1;){
 
         if((int)offer_packet->options[itr1]<=0)
         {
