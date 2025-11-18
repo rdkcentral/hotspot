@@ -490,7 +490,6 @@ int send_dhcp_discover(int sock, int ifindex){
     dhcp_discover_packet.data.hlen=ETHERNET_HARDWARE_ADDRESS_LENGTH;
     dhcp_discover_packet.data.hops=0;
     /* create a random transaction ID */
-    srand(time(NULL));
     packet_xid=get_secure_random_xid();
     dhcp_discover_packet.data.xid=htonl(packet_xid);
     dhcp_discover_packet.data.secs=0;
@@ -617,7 +616,6 @@ int send_dhcp_release(int sock, offer_info ackinfo, int ifindex){
     release_packet.data.hlen=ETHERNET_HARDWARE_ADDRESS_LENGTH;
     release_packet.data.hops=0;
     /* A random transaction ID is generated */
-    srand(time(NULL));
     packet_xid=get_secure_random_xid();
     release_packet.data.xid=htonl(packet_xid);
     release_packet.data.secs=0;
@@ -856,7 +854,7 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
         return -1;
     }
     /* Go through all DHCP options present */
-    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-1;){
+    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-2;){
         
         if((int)offer_packet->options[itr1]<=0)
         {
@@ -875,6 +873,7 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
         /* skip the unnecessary data */
         else
         {
+            if (itr1 + option_length > MAX_DHCP_OPTIONS_LENGTH) break;
             for(itr2=0;itr2<(int)option_length;itr2++,itr1++);
         }
     }
@@ -896,7 +895,7 @@ uint32_t get_dhcp_server_identifier(dhcp_packet *offer_packet)
         return 0;
     }
     /* Go through all DHCP options present */
-    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-1;){
+    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-2;){
 
         if((int)offer_packet->options[itr1]<=0)
         {
@@ -915,6 +914,7 @@ uint32_t get_dhcp_server_identifier(dhcp_packet *offer_packet)
         /* skip the unnecessary data */
         else
         {
+            if (itr1 + option_length > MAX_DHCP_OPTIONS_LENGTH) break;
             for(itr2=0;itr2<(int)option_length;itr2++,itr1++);
         }
     }
