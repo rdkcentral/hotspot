@@ -2028,6 +2028,29 @@ void hotspot_start()
             hotspotfd_SignalHandler(0);
         }
 #endif
+#ifdef WAN_FAILOVER_SUPPORTED
+    rbusDataElement_t dataElements[1] = {
+        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, NULL, NULL}}
+    };
+    ret = rbus_open(&handle, "HotspotTunnelEvent");
+    if(ret != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceError(("HotspotTunnelEvent : rbus_open failed: %d\n", ret));
+        return;
+    }
+    ret = rbus_regDataElements(handle, 1, dataElements);
+    if(ret != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceError(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus rbus_regDataElements failed: %d\n", ret));
+        return;
+    }
+    else{
+        CcspTraceInfo(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus"));
+    }
+    sleep(1);
+    pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
+
+#endif
         pthread_create(&sysevent_tid, NULL, hotspotfd_sysevent_handler, NULL);
     } else {
 		CcspTraceError(("sysevent_open for event handling or get set has failed hotspotfd bring up aborted\n"));
