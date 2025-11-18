@@ -432,7 +432,6 @@ TEST_F(HotspotFdTestFixture, deleteSharedMem_CASE_2) {
     EXPECT_EQ(true, result);
 }*/
 
-
 TEST_F(HotspotFdTestFixture, set_validatessid_CASE1) {
     bool result;
     char mockValue[] = "false";
