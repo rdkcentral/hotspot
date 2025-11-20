@@ -184,12 +184,14 @@ int main(int argc, char **argv){
       print_usage();
       return 0;
     }
-    if(argc == 2)
-        strncpy(network_interface_name,argv[1],sizeof(network_interface_name));
-
-    if(argc >= 3)
-        strncpy(vlan_id,argv[2],sizeof(vlan_id));
-
+    if(argc == 2){
+        strncpy(network_interface_name, argv[1], sizeof(network_interface_name) - 1);
+        network_interface_name[sizeof(network_interface_name) - 1] = '\0';
+    }
+    if(argc >= 3){
+        strncpy(vlan_id, argv[2], sizeof(vlan_id) - 1);
+        vlan_id[sizeof(vlan_id) - 1] = '\0';
+    }
     xfinitylogfp = fopen(XFINITYTESTLOG,"a");
     if (xfinitylogfp == NULL) {
         return 0;
@@ -326,7 +328,7 @@ int parse_if_inet6(const char* ifname){
     }
 
 /* We are storing each line in if_inet6 into 19 variables */
-    while (19 == fscanf(inet6_fp, " %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx %*x %x %x %*x %s",
+    while (19 == fscanf(inet6_fp, " %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx %*x %x %x %*x %15s",
                         &ipv6_addr[0], &ipv6_addr[1], &ipv6_addr[2], &ipv6_addr[3], &ipv6_addr[4], &ipv6_addr[5], &ipv6_addr[6], &ipv6_addr[7],
                         &ipv6_addr[8], &ipv6_addr[9], &ipv6_addr[10], &ipv6_addr[11], &ipv6_addr[12], &ipv6_addr[13], &ipv6_addr[14],
                         &ipv6_addr[15], &prefix, &scope, dname))
@@ -388,7 +390,7 @@ int get_hardware_address(int sock,char *interface_name){
 
     struct ifreq ifr;
 
-    strncpy((char *)&ifr.ifr_name,interface_name,sizeof(ifr.ifr_name));
+    strncpy((char *)&ifr.ifr_name,interface_name,IFNAMSIZ - 1);
     /* get the hardware address of the test interface */
     if(ioctl(sock,SIOCGIFHWADDR,&ifr)<0){
         fprintf(xfinitylogfp,"Could not get the hardware address of interface '%s'\n",interface_name);
@@ -447,6 +449,25 @@ int create_dhcp_socket(int ifindex){
     return sock;
 }
 
+
+unsigned int get_secure_random_xid(void) {
+    char timestr[30];
+    unsigned int xid = 0;
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        ssize_t bytes_read = read(fd, &xid, sizeof(xid));
+        if (bytes_read != sizeof(xid)) {
+            fprintf(xfinitylogfp,"%s : Error: read from /dev/urandom returned %zd bytes, expected %zu\n",
+                    timestamputc(timestr), bytes_read, sizeof(xid));
+            xid = 0;  // fallback value
+        }
+        close(fd);
+    } else {
+        fprintf(xfinitylogfp,"%s : Error opening /dev/urandom\n",timestamputc(timestr));
+    }
+    return xid;
+}
+
 /* sends a DHCP packet */
 int send_dhcp_packet(void *buf, int buf_size, int sock, struct sockaddr_ll *destaddr){
     int ret;
@@ -469,8 +490,7 @@ int send_dhcp_discover(int sock, int ifindex){
     dhcp_discover_packet.data.hlen=ETHERNET_HARDWARE_ADDRESS_LENGTH;
     dhcp_discover_packet.data.hops=0;
     /* create a random transaction ID */
-    srand(time(NULL));
-    packet_xid=random();
+    packet_xid=get_secure_random_xid();
     dhcp_discover_packet.data.xid=htonl(packet_xid);
     dhcp_discover_packet.data.secs=0;
     /* Broadcast flag is set */
@@ -596,8 +616,7 @@ int send_dhcp_release(int sock, offer_info ackinfo, int ifindex){
     release_packet.data.hlen=ETHERNET_HARDWARE_ADDRESS_LENGTH;
     release_packet.data.hops=0;
     /* A random transaction ID is generated */
-    srand(time(NULL));
-    packet_xid=random();
+    packet_xid=get_secure_random_xid();
     release_packet.data.xid=htonl(packet_xid);
     release_packet.data.secs=0;
     /* Broadcast flag is set */
@@ -668,6 +687,11 @@ offer_info get_dhcp_offer(int sock){
     int dhcpmsg;
     time(&start_time);
     packetbuf = (char *)malloc(600);
+    if (packetbuf == NULL) {
+        fprintf(xfinitylogfp, "%s : HOTSPOT_HEALTHCHECK : malloc failed\n", timestamputc(timestr));
+        memset(&offinfo,0,sizeof(offinfo));
+        return offinfo;
+    }
     memset(&offinfo,0,sizeof(offinfo));
     /* receive till timeout */
     while(1){
@@ -728,12 +752,14 @@ offer_info get_dhcp_offer(int sock){
             offinfo.xid = offer_packet.xid;
             offinfo.offered_addr.s_addr = offer_packet.yiaddr.s_addr;
             offinfo.server_addr.s_addr = get_dhcp_server_identifier(&offer_packet);
+            free(packetbuf);
             return offinfo;
         case DHCPACK:
             fprintf(xfinitylogfp,"%s : HOTSPOT_HEALTHCHECK : ACK packet is received\n",timestamputc(timestr));
             offinfo.xid = offer_packet.xid;
             offinfo.offered_addr.s_addr = offer_packet.yiaddr.s_addr;
             offinfo.server_addr.s_addr = get_dhcp_server_identifier(&offer_packet);
+            free(packetbuf);
             return offinfo;
         case DHCPNACK:
             fprintf(xfinitylogfp,"%s : HOTSPOT_HEALTHCHECK : IPv4_XfinityHealthCheck_dora_nak\n",timestamputc(timestr));
@@ -744,6 +770,7 @@ offer_info get_dhcp_offer(int sock){
         }
     }
 
+    free(packetbuf);
     return offinfo;
 }
 
@@ -827,7 +854,8 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
         return -1;
     }
     /* Go through all DHCP options present */
-    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH;){
+    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-2;){
+        
         if((int)offer_packet->options[itr1]<=0)
         {
             break;
@@ -845,6 +873,7 @@ int dhcp_msg_type(dhcp_packet *offer_packet)
         /* skip the unnecessary data */
         else
         {
+            if (itr1 + option_length > MAX_DHCP_OPTIONS_LENGTH) break;
             for(itr2=0;itr2<(int)option_length;itr2++,itr1++);
         }
     }
@@ -866,7 +895,8 @@ uint32_t get_dhcp_server_identifier(dhcp_packet *offer_packet)
         return 0;
     }
     /* Go through all DHCP options present */
-    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH;){
+    for(itr1=4;itr1<MAX_DHCP_OPTIONS_LENGTH-2;){
+
         if((int)offer_packet->options[itr1]<=0)
         {
             break;
@@ -884,10 +914,10 @@ uint32_t get_dhcp_server_identifier(dhcp_packet *offer_packet)
         /* skip the unnecessary data */
         else
         {
+            if (itr1 + option_length > MAX_DHCP_OPTIONS_LENGTH) break;
             for(itr2=0;itr2<(int)option_length;itr2++,itr1++);
         }
     }
     fprintf(xfinitylogfp,"Option 54 not found\n");
     return 0;
 }
-
