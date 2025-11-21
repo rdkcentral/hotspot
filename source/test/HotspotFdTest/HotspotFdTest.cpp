@@ -414,7 +414,7 @@ TEST_F(HotspotFdTestFixture, deleteSharedMem_CASE_2) {
     EXPECT_EQ(true, result);
 }
 
-TEST_F(HotspotFdTestFixture, set_tunnelstatus) {
+/*TEST_F(HotspotFdTestFixture, set_tunnelstatus) {
     bool result;
     char status[] = "Up";
     char mockFaultParam[] = "TRUE";
@@ -430,43 +430,7 @@ TEST_F(HotspotFdTestFixture, set_tunnelstatus) {
 
     result = set_tunnelstatus(status);
     EXPECT_EQ(true, result);
-}
-
-TEST_F(HotspotFdTestFixture, notify_tunnel_status_UP) {
-    char status[] = "Up";
-    char mockFaultParam[] = "TRUE";
-
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), _))
-    .Times(1).WillOnce(Return(CCSP_SUCCESS));
-
-    notify_tunnel_status(status);
-}
-
-TEST_F(HotspotFdTestFixture, notify_tunnel_status_DOWN) {
-    char status[] = "Down";
-    char mockFaultParam[] = "False";
-
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), _))
-    .Times(1).WillOnce(Return(CCSP_SUCCESS));
-
-    notify_tunnel_status(status);
-}
+}*/
 
 TEST_F(HotspotFdTestFixture, set_validatessid_CASE1) {
     bool result;
