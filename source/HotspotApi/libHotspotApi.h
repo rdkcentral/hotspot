@@ -32,6 +32,8 @@
    #define PSM_VLAN_PUBLIC        "dmsb.l2net.11.Vid"
 #elif defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
    #define MAX_VAP      6
+#elif defined (_SCXF11BFL_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+   #define MAX_VAP      6
 #else
    #define MAX_VAP      4
 #endif
