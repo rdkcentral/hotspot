@@ -2121,11 +2121,9 @@ void hotspot_start()
     else{
         CcspTraceInfo(("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus is registered in rbus"));
     }
-    sleep(1);
     pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
 
 #endif
-
     if (sysevent_set(sysevent_fd_gs, sysevent_token_gs, kHotspotfd_tunnelEP, kDefault_DummyEP, 0))
     {
         CcspTraceError(("sysevent set %s failed for %s\n", kHotspotfd_tunnelEP, kDefault_DummyEP));

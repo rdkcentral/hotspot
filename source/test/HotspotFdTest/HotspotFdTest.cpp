@@ -571,7 +571,6 @@ TEST_F(HotspotFdTestFixture, TunnelStatus_SetStringHandler_NoChange) {
     EXPECT_STREQ("Up", TunnelStatus);
 }
 
-
 TEST_F(HotspotFdTestFixture, set_validatessid_CASE1) {
     bool result;
     char mockValue[] = "false";
