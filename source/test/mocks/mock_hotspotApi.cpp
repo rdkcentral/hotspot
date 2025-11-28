@@ -38,3 +38,19 @@ extern "C" void recreate_tunnel() {
     }
     return g_hotspotApiMock->recreate_tunnel();
 }
+
+extern "C" int PsmGet(const char *param, char *value, int size) {
+    if (!g_hotspotApiMock)
+    {
+        return -1;
+    }
+    return g_hotspotApiMock->PsmGet(param, value, size);
+}
+
+extern "C" int hotspot_wan_failover(bool remote_wan_enabled) {
+    if (!g_hotspotApiMock)
+    {
+        return -1;
+    }
+    return g_hotspotApiMock->hotspot_wan_failover(remote_wan_enabled);
+}
