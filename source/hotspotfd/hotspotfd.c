@@ -366,29 +366,35 @@ STATIC bool set_tunnelstatus(char* status) {
 
 STATIC void notify_tunnel_status(char *status)
 {
-    int ret;
-    /*if(set_tunnelstatus(status))
-    {
-        CcspTraceInfo(("TunnelStatus set to %s in TR181\n", status));
-    }
-    else
-    {
-        CcspTraceError(("Error setting TunnelStatus in TR181 Data Model\n"));
-    }*/
+    rbusEvent_t event;
+    rbusObject_t data;
+    rbusValue_t value;
+    rbusError_t ret;
 
-    strncpy(TunnelStatus, status, strlen(status));
-    TunnelStatus[strlen(status)] = '\0'; // Ensure null termination
+    strncpy(TunnelStatus, status, sizeof(TunnelStatus) - 1);
+    TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
     CcspTraceInfo(("TunnelStatus is set to %s\n", TunnelStatus));
 
-    ret = CcspBaseIf_SendSignal_WithData_rbus(handle, "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", status);
-    if ( ret != CCSP_SUCCESS )
-    {
-        CcspTraceError(("%s : TunnelStatus send rbus data failed,  ret value is %d\n",
-                                                                               __FUNCTION__ ,ret));
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, status);
+    rbusObject_Init(&data, NULL);
+    rbusObject_SetValue(data, "TunnelStatus", value);
+
+    event.name = "Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus";
+    event.type = RBUS_EVENT_GENERAL;
+    event.data = data;
+     
+    ret = rbusEvent_Publish(handle, &event);
+    if(ret != RBUS_ERROR_SUCCESS) {
+        CcspTraceError(("rbusEvent_Publish failed: %d\n", ret));
     }
-    else{
-        CcspTraceInfo(("%s : TunnelStatus send rbus data success\n", __FUNCTION__));
+    else {
+        CcspTraceInfo(("rbusEvent_Publish success\n"));
     }
+
+    rbusValue_Release(value);
+    rbusObject_Release(data);
+    
     if(strcmp("Down",status) == 0)
     {
         gVapIsUp = false;
