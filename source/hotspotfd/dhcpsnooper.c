@@ -199,7 +199,7 @@ int publishToOneWifi(char *cmdStr)
     rbusValue_SetString(value, cmdStr);
     
     // Set property using RBus
-    rc = rbus_set(handle, "Device.VAP.X_RDK_IpAddr", value, NULL);
+    rc = rbus_set(handle, "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient", value, NULL);
     
     // Clean up
     rbusValue_Release(value);

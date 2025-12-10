@@ -193,6 +193,10 @@ STATIC pthread_t rbus_tid;
 rbusHandle_t handle;
 #endif
 
+#define HOTSPOT_NUM_OF_RBUS_PARAMS  sizeof(hotspotRbusDataElements)/sizeof(hotspotRbusDataElements[0])
+#define HIPADDR "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient"
+static rbusError_t rbus_privateIPAddr_SetStringHandler(rbusHandle_t handle, rbusProperty_t prop, rbusSetHandlerOptions_t* opts);
+
 STATIC pthread_t dhcp_snooper_tid;
 
 int gSnoopNumberOfClients = 0; //shared variable across hotspotfd and dhcp_snooperd
@@ -279,6 +283,70 @@ Hotspotfd_MsgItem hotspotfdMsgArr[] = {
     {"test_current_wan_ifname",                       TEST_CURRENT_WAN_IFNAME}
 #endif
     };
+  
+    rbusDataElement_t hotspotRbusDataElements[] = 
+    {	
+        /* RBUS_BOOLEAN */
+        {HIPADDR, RBUS_ELEMENT_TYPE_PROPERTY, {NULL, rbus_privateIPAddr_SetStringHandler, NULL, NULL, NULL, NULL}}
+    };
+
+void dhcpClientPrivateIpAddressPublish(  char* eventData)
+{
+    rbusValue_t value;
+    rbusObject_t rd;
+    char eventName[64] = {0};
+
+    rbusValue_Init(&value);
+    rbusObject_Init(&rd, NULL);
+
+    snprintf(eventName, 64, "%s",HIPADDR);
+    rbusValue_SetString(value, eventData);
+
+    rbusObject_SetValue(rd, eventName, value);
+    
+    rbusEvent_t event;
+    event.name = eventName;
+    event.data = rd;
+    event.type = RBUS_EVENT_GENERAL;
+
+    int rc = rbusEvent_Publish(handle, &event);
+    if(rc != RBUS_ERROR_SUCCESS){
+        if (rc == RBUS_ERROR_NOSUBSCRIBERS) {
+            CcspTraceInfo(("%s: No subscribers found\n", __FUNCTION__));
+        }
+        CcspTraceInfo(("%s:%d rbusEvent_Publish %s failed\n", __func__, __LINE__, event.name ));
+    }
+    rbusValue_Release(value);
+    rbusObject_Release(rd);
+}
+
+/**
+ * @brief RBUS-compliant wrapper for setting the private IP address.
+ * This function has the correct signature for an rbus setHandler.
+ */
+static rbusError_t rbus_privateIPAddr_SetStringHandler(rbusHandle_t handle, rbusProperty_t prop, rbusSetHandlerOptions_t* opts)
+{
+    UNREFERENCED_PARAMETER(handle);
+    UNREFERENCED_PARAMETER(opts);
+
+    char const* propName = rbusProperty_GetName(prop);
+    rbusValue_t value = rbusProperty_GetValue(prop);
+    char const* str_val = rbusValue_GetString(value, NULL);
+
+    if (!str_val)
+    {
+        CcspTraceWarning(("%s: Received NULL value for property %s\n", __FUNCTION__, propName));
+        return RBUS_ERROR_INVALID_INPUT;
+    }
+
+    CcspTraceInfo(("%s: Calling original handler for %s with value %s\n", __FUNCTION__, propName, str_val));
+
+    /* Call the original logic, which now correctly handles the void return */
+   // privateIPAddr_SetStringHandler(NULL, (char*)propName, (char*)str_val);
+    dhcpClientPrivateIpAddressPublish((char*)str_val);
+
+    return RBUS_ERROR_SUCCESS;
+}
 
 HotspotfdType Get_HotspotfdType(char * name)
 {
@@ -2056,6 +2124,20 @@ void hotspot_start()
     pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
 
 #endif
+
+    int rc = RBUS_ERROR_SUCCESS;
+    // Register data elements
+    rc = rbus_regDataElements(handle, HOTSPOT_NUM_OF_RBUS_PARAMS, hotspotRbusDataElements);
+
+    if (rc != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceError(("rbus register data elements failed\n"));
+        return;
+    }
+    else
+    {
+        CcspTraceInfo(("%s: rbus register data elements success\n", __FUNCTION__));
+    }
 
     if (sysevent_set(sysevent_fd_gs, sysevent_token_gs, kHotspotfd_tunnelEP, kDefault_DummyEP, 0))
     {
