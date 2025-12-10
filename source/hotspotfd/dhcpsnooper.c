@@ -55,6 +55,30 @@
 #include <telemetry_busmessage_sender.h>
 #include "safec_lib_common.h"
 #include "libHotspot.h"
+#include <time.h>
+#include <stdbool.h>
+
+
+#define LOG_FILE_PATH "/tmp/DBG_FILE.txt"
+
+void DBG_WRITE(const char *format, ...) {
+  FILE *log_file = fopen(LOG_FILE_PATH, "a+");
+  if (log_file == NULL) {
+    perror("Error opening log file");
+    return;
+  }
+
+  va_list args;
+  va_start(args, format);
+  vfprintf(log_file, format, args);
+  va_end(args);
+
+  fprintf(log_file, "\n");
+  fclose(log_file);
+}
+
+
+
 
 
 #define mylist_safe(p, q, h) \
@@ -133,6 +157,8 @@ static char g_cHostnameForQueue[kSnoop_MaxCircuitIDs][kSnooper_MaxHostNameLen];
 static char g_cInformIpForQueue[kSnoop_MaxCircuitIDs][INET_ADDRSTRLEN];
 extern vlanSyncData_s gVlanSyncData[];
 extern int gVlanSyncDataSize;
+client_node_t *client_list = NULL;
+extern rbusHandle_t handle;
 
 #if 0
 static void snoop_setDhcpRelayAgentAddAgentOptions(int aao)
@@ -155,6 +181,119 @@ static enum agent_relay_mode_t snoop_getDhcpRelayAgentMode( )
 	return agent_relay_mode;
 }
 #endif
+
+int publishToOneWifi(char *cmdStr)
+{
+    rbusError_t rc = RBUS_ERROR_SUCCESS;
+    rbusValue_t value;
+    
+    DBG_WRITE("Command string: %s - %s\n", cmdStr, __FUNCTION__);
+    
+    if (cmdStr == NULL || strlen(cmdStr) == 0) {
+        DBG_WRITE("mac address empty and not sending rbus event to onewifi: %d\n", __LINE__);
+        return 0;
+    }
+    
+    // Initialize RBus value
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, cmdStr);
+    
+    // Set property using RBus
+    rc = rbus_set(handle, "Device.VAP.X_RDK_IpAddr", value, NULL);
+    
+    // Clean up
+    rbusValue_Release(value);
+    
+    if (rc != RBUS_ERROR_SUCCESS) {
+        DBG_WRITE("Failed to set RBus property: error code %d (line %d)\n", rc, __LINE__);
+        return 0;
+    }
+    
+    DBG_WRITE("Successfully published to OneWifi via RBus\n");
+    return 1;
+}
+
+dhcp_client_state_t* get_client_state(const char *mac) 
+{
+    if (mac == NULL || strlen(mac) == 0) {
+        DBG_WRITE("get_client_state: Invalid MAC address input\n");
+        return NULL;
+    }
+
+    client_node_t *cur = client_list;
+    while (cur) {
+        if (strcmp(cur->mac, mac) == 0)
+            return &cur->state;
+        cur = cur->next;
+    }
+
+    // Not found, create new
+    client_node_t *new_node = (client_node_t *)calloc(1, sizeof(client_node_t));
+    if (!new_node) {
+        DBG_WRITE("get_client_state: Memory allocation failed for MAC %s\n", mac);
+        return NULL;
+    }
+    strncpy(new_node->mac, mac, sizeof(new_node->mac) - 1);
+    DBG_WRITE("new_node->mac: %s\n", new_node->mac);
+    new_node->mac[sizeof(new_node->mac) - 1] = '\0';
+    new_node->next = client_list;
+    client_list = new_node;
+    return &new_node->state;
+}
+
+// Remove client node from the linked list by MAC address
+void remove_client_state(const char *mac) 
+{
+    if (!mac || !client_list) 
+        return;
+    client_node_t *prev = NULL, *cur = client_list;
+    while (cur) 
+    {
+        if (strcmp(cur->mac, mac) == 0) 
+        {
+            if (prev) 
+            {
+                prev->next = cur->next;
+            } 
+            else 
+            {
+                client_list = cur->next;
+            }
+            free(cur);
+            return;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+}
+
+static void constructCommand(char *macaddr, char *cmd)
+{
+    snooper_priv_client_list * pNewClient;
+    struct mylist_head * pos, * q;
+    bool already_in_list = false;
+    char macaddrWithIndex[64] = {0};
+    pthread_mutex_lock(&global_stats_mutex);
+    mylist_safe(pos, q, &gSnoop_ClientList.list) {
+
+         pNewClient= mylist_entry(pos, snooper_priv_client_list, list);
+         if(!strcasecmp(pNewClient->client.remote_id, macaddr)) {
+             already_in_list = true;
+             break;
+         }
+    }
+    if(already_in_list)
+    {
+        DBG_WRITE("Client:%s is present in list\n", macaddr);
+        sprintf(macaddrWithIndex, "%s_%d", macaddr, pNewClient->client.vapIndex);
+        macaddrWithIndex[sizeof(macaddrWithIndex) - 1] = '\0';
+    }
+    strncpy(cmd, macaddrWithIndex, sizeof(macaddrWithIndex) - 1);
+    DBG_WRITE("constructCommand :%s\n", cmd);
+    pthread_mutex_unlock(&global_stats_mutex);
+
+}
+
 #if defined (AMENITIES_NETWORK_ENABLED)
 static BOOL isValidAmenityQueue(int queue_number, int *pIndex)
 {
@@ -740,7 +879,7 @@ static void snoop_CheckClientIsPrivate(char *pRemote_id)
 }
 
 static void snoop_AddClientListEntry(char *pRemote_id, char *pCircuit_id,
-                                  char *pDhcp_status, char *pIpv4_addr, char *pHostname, int rssi)
+                                  char *pDhcp_status, char *pIpv4_addr, char *pHostname, int rssi,int vap_index)
 {
     errno_t rc = -1;
     snooper_priv_client_list * pNewClient;
@@ -820,6 +959,7 @@ static void snoop_AddClientListEntry(char *pRemote_id, char *pCircuit_id,
                                 }
                           }
                            pNewClient->client.rssi = rssi;
+                           pNewClient->client.vapIndex = vap_index;
                            pNewClient->client.noOfTriesForOnlineCheck = 0;
                            mylist_add(&pNewClient->list, &gSnoop_ClientList.list);
                            gSnoopNumberOfClients++;
@@ -870,7 +1010,8 @@ static void snoop_AddClientListEntry(char *pRemote_id, char *pCircuit_id,
                 }
                 else
                 {
-                         pNewClient->client.rssi = rssi;
+                        pNewClient->client.rssi = rssi;
+                        pNewClient->client.vapIndex = vap_index;
                 }
     }
     mutex_cleanup:
@@ -1005,6 +1146,13 @@ static bool snoop_isValidIpAddress(char *ipAddress)
     return (result != 0 && sa.sin_addr.s_addr != 0);
 }
 
+// Function to calculate the elapsed time in milliseconds
+static long calculate_elapsed_time(struct timespec start) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000;
+}
+
 static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *msg,struct nfq_data *pkt, void *cbData) 
 {
     UNREFERENCED_PARAMETER(msg);
@@ -1021,6 +1169,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
     struct iphdr *iph = NULL;
     /* Coverity Fix CID: 74885 UnInit var */
     char ipv4_addr[INET_ADDRSTRLEN] = {0};
+    char madaddrwithIndex[64] = {0};
 
     // The iptables queue number is passed when this handler is registered
     // with nfq_create_queue
@@ -1082,6 +1231,72 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
         }
     }
 
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", 
+                pktData[56], pktData[57], pktData[58], pktData[59], pktData[60], pktData[61]);
+    dhcp_client_state_t *state = get_client_state(mac_str);
+    if (!state)
+    {
+        DBG_WRITE("Failed to create client state for MAC %s\n", mac_str);
+    }
+    //Dissconnect the client when client gets private IP address
+    switch(pktData[kSnoop_DHCP_Option53_Offset])
+    {
+        case kSnoop_DHCP_Discover:
+            DBG_WRITE("%s:%d>  DHCP Discover\n", __FUNCTION__, __LINE__);
+                if (!state->timer_running) {
+                    clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+                    state->timer_running = true;
+                    state->ipv4_addr[0] = '\0';
+                    state->seen_discover = true;
+                    state->seen_request = false;
+                    state->seen_offer = false;
+                    state->seen_ack = false;
+                }
+            break;
+        case kSnoop_DHCP_Request:
+            state->seen_request = true;
+            break;
+        case kSnoop_DHCP_Offer:
+            state->seen_offer = true;
+            break;
+        case kSnoop_DHCP_ACK:
+            memset(state->ipv4_addr, 0, sizeof(state->ipv4_addr));
+            inet_ntop(AF_INET, &(pktData[44]), state->ipv4_addr, INET_ADDRSTRLEN);
+            if (strcmp(state->ipv4_addr, "172.20.20.20") == 0) {
+                state->seen_ack = true;
+            }
+            break;
+        default:
+            break;
+    }
+
+    // Check if all states are seen and ACK is for 172.20.20.20
+    if (state->timer_running && state->seen_discover && state->seen_request && state->seen_offer && state->seen_ack) {
+        long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
+        DBG_WRITE("All DHCP states completed with ACK IP 172.20.20.20 in %ld ms. Timer stopped.\n", elapsed_time);
+        state->timer_running = false;
+        state->seen_discover = state->seen_request = state->seen_offer = state->seen_ack = false;
+        remove_client_state(mac_str);
+    }
+    
+    // Check if the timer has exceeded 10 seconds
+    if (state->timer_running) {
+        long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
+        if (elapsed_time >= 3000) { // 10 seconds
+            if (!(state->seen_discover && state->seen_request && state->seen_offer && state->seen_ack)) {
+                constructCommand(mac_str, madaddrwithIndex);
+                if(publishToOneWifi(madaddrwithIndex))
+                {
+                    DBG_WRITE("DHCP ACK not received for client MAC.Publising RBus event Timer stopped. Time elapsed: %ld s - line %d\n",
+                             (elapsed_time/1000), __LINE__);
+                }
+            }
+            state->timer_running = false;
+            state->seen_discover = state->seen_request = state->seen_offer = state->seen_ack = false; // Reset for next session
+            remove_client_state(mac_str);
+        }
+    }
     // If gSnoopEnable is not set then just send the packet out
     if (((pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Request) || (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Discover) ||
          (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Decline) || (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Release) || (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Inform))
@@ -1335,7 +1550,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 		          	ERR_CHK(rc);
 			        return -1;
 		        }
-				snoop_AddClientListEntry(gRemote_id, gCircuit_id, "ACK", ipv4_addr, l_cHostName, 0);
+				snoop_AddClientListEntry(gRemote_id, gCircuit_id, "ACK", ipv4_addr, l_cHostName, 0,0);
                 snoop_CheckClientIsPrivate(gRemote_id);  
         	}
     	    snoop_log();
@@ -1350,7 +1565,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
     }
 }
 
-void updateRssiForClient(char* pRemote_id, int rssi)
+void updateRssiForClient(char* pRemote_id, int rssi,int vap_index)
 {
     bool already_in_list = false;
     struct mylist_head * pos, * q;
@@ -1363,6 +1578,7 @@ void updateRssiForClient(char* pRemote_id, int rssi)
          if(!strcasecmp(pNewClient->client.remote_id, pRemote_id)) {
              already_in_list = true;
              pNewClient->client.rssi = rssi;
+             pNewClient->client.vapIndex = vap_index;
              break;
     }
 }
@@ -1370,7 +1586,7 @@ void updateRssiForClient(char* pRemote_id, int rssi)
     if (false == already_in_list)
     {
          msg_debug("Client :%s is not present Add to the clientlist\n", pRemote_id);
-         snoop_AddClientListEntry(pRemote_id, NULL, NULL, NULL, NULL, rssi);
+         snoop_AddClientListEntry(pRemote_id, NULL, NULL, NULL, NULL, rssi,vap_index);
     }
     else
     {

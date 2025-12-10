@@ -188,6 +188,7 @@ typedef struct
     char dhcp_status[kSnooper_MaxStatusLen];
     char hostname[kSnooper_MaxHostNameLen];
     int rssi;
+    int vapIndex;
 	int noOfTriesForOnlineCheck;
 } snooper_client_list;
 
@@ -227,7 +228,7 @@ typedef struct
 #define DNSMASQ_LEASES_FILE 		  "/nvram/dnsmasq.leases"
 
 void *dhcp_snooper_init(void *); 
-void updateRssiForClient(char* pRemote_id, int rssi);
+void updateRssiForClient(char* pRemote_id, int rssi,int vap_index);
 void snoop_RemoveClientListEntry(char *pRemote_id);
 uint16_t snoop_ipChecksum(struct iphdr * header);
 void snoop_log(void);
