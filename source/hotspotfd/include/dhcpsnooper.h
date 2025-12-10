@@ -226,10 +226,17 @@ typedef struct
 typedef struct {
     struct timespec dhcp_timer_start;
     bool timer_running;
+<<<<<<< HEAD
     bool seen_discover;
     bool seen_request;
     bool seen_offer;
     bool seen_ack;
+=======
+    bool dhcp_discover;
+    bool dhcp_request;
+    bool dhcp_offer;
+    bool dhcp_ack;
+>>>>>>> d04fc7f (Description: Monitor DHCP packet in packet handler and)
     char ipv4_addr[INET_ADDRSTRLEN];
 } dhcp_client_state_t;
 

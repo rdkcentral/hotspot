@@ -1239,52 +1239,12 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
     {
         DBG_WRITE("Failed to create client state for MAC %s\n", mac_str);
     }
-    //Dissconnect the client when client gets private IP address
-    switch(pktData[kSnoop_DHCP_Option53_Offset])
-    {
-        case kSnoop_DHCP_Discover:
-            DBG_WRITE("%s:%d>  DHCP Discover\n", __FUNCTION__, __LINE__);
-                if (!state->timer_running) {
-                    clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
-                    state->timer_running = true;
-                    state->ipv4_addr[0] = '\0';
-                    state->seen_discover = true;
-                    state->seen_request = false;
-                    state->seen_offer = false;
-                    state->seen_ack = false;
-                }
-            break;
-        case kSnoop_DHCP_Request:
-            state->seen_request = true;
-            break;
-        case kSnoop_DHCP_Offer:
-            state->seen_offer = true;
-            break;
-        case kSnoop_DHCP_ACK:
-            memset(state->ipv4_addr, 0, sizeof(state->ipv4_addr));
-            inet_ntop(AF_INET, &(pktData[44]), state->ipv4_addr, INET_ADDRSTRLEN);
-            if (strcmp(state->ipv4_addr, "172.20.20.20") == 0) {
-                state->seen_ack = true;
-            }
-            break;
-        default:
-            break;
-    }
 
-    // Check if all states are seen and ACK is for 172.20.20.20
-    if (state->timer_running && state->seen_discover && state->seen_request && state->seen_offer && state->seen_ack) {
-        long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
-        DBG_WRITE("All DHCP states completed with ACK IP 172.20.20.20 in %ld ms. Timer stopped.\n", elapsed_time);
-        state->timer_running = false;
-        state->seen_discover = state->seen_request = state->seen_offer = state->seen_ack = false;
-        remove_client_state(mac_str);
-    }
-    
     // Check if the timer has exceeded 10 seconds
     if (state->timer_running) {
         long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
         if (elapsed_time >= 3000) { // 10 seconds
-            if (!(state->seen_discover && state->seen_request && state->seen_offer && state->seen_ack)) {
+            if (!(state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack)) {
                 constructCommand(mac_str, madaddrwithIndex);
                 if(publishToOneWifi(madaddrwithIndex))
                 {
@@ -1293,7 +1253,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
                 }
             }
             state->timer_running = false;
-            state->seen_discover = state->seen_request = state->seen_offer = state->seen_ack = false; // Reset for next session
+            state->dhcp_discover = state->dhcp_request = state->dhcp_offer = state->dhcp_ack = false; // Reset for next session
             remove_client_state(mac_str);
         }
     }
@@ -1314,6 +1274,25 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
         }
         else
 #endif
+
+        if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Discover)
+        {
+            DBG_WRITE("%s:%d>  DHCP Discover\n", __FUNCTION__, __LINE__);
+            if (!state->timer_running) {
+                clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+                state->timer_running = true;
+                state->ipv4_addr[0] = '\0';
+                state->dhcp_discover = true;
+                state->dhcp_request = false;
+                state->dhcp_offer = false;
+                state->dhcp_ack = false;
+            } 
+        }
+        if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Request)
+        {
+            DBG_WRITE("%s:%d>  DHCP Request\n", __FUNCTION__, __LINE__);
+            state->dhcp_request = true;
+        }
         rc = strcpy_s(gCircuit_id, sizeof(gCircuit_id), gSnoopCircuitIDList[queue_number]);
 		if(rc != EOK)
 		{
@@ -1424,6 +1403,28 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
         if ( (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Offer) ||
 		 	 (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_ACK))
 		{
+            if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Offer)
+            {
+                DBG_WRITE("%s:%d>  DHCP Offer\n", __FUNCTION__, __LINE__);
+                state->dhcp_offer = true;
+            }
+            else if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_ACK)
+            {
+                DBG_WRITE("%s:%d>  DHCP ACK\n", __FUNCTION__, __LINE__);
+                memset(state->ipv4_addr, 0, sizeof(state->ipv4_addr));
+                inet_ntop(AF_INET, &(pktData[44]), state->ipv4_addr, INET_ADDRSTRLEN);
+                if (strcmp(state->ipv4_addr, "172.20.20.20") == 0) {
+                    state->dhcp_ack = true;
+                }
+            }
+            if (state->timer_running && state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack) 
+            {
+                long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
+                DBG_WRITE("All DHCP states completed with ACK IP 172.20.20.20 in %ld ms. Timer stopped.\n", elapsed_time);
+                state->timer_running = false;
+                state->dhcp_discover = state->dhcp_request = state->dhcp_offer = state->dhcp_ack = false;
+                remove_client_state(mac_str);
+            }
             msg_debug("%s:%d>  DHCP Offer / DHCP Ack:%d received from server \n", __FUNCTION__, __LINE__, pktData[kSnoop_DHCP_Option53_Offset]);
 			new_data_len = snoop_removeRelayAgentOptions((struct dhcp_packet *)&pktData[kSnoop_DHCP_Options_Start], len, queue_number);
 
