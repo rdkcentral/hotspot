@@ -223,6 +223,22 @@ typedef struct
 
 }  snooper_statistics_s;
 
+typedef struct {
+    struct timespec dhcp_timer_start;
+    bool timer_running;
+    bool seen_discover;
+    bool seen_request;
+    bool seen_offer;
+    bool seen_ack;
+    char ipv4_addr[INET_ADDRSTRLEN];
+} dhcp_client_state_t;
+
+typedef struct client_node {
+    char mac[18];
+    dhcp_client_state_t state;
+    struct client_node *next;
+} client_node_t;
+
 #define kSnooper_Statistics           865889 // key used for shared memory
 #define kSnooper_SharedMemSize        sizeof(snooper_statistics_s)
 #define DNSMASQ_LEASES_FILE 		  "/nvram/dnsmasq.leases"
