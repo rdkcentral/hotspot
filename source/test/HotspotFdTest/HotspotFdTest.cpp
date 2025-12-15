@@ -154,7 +154,7 @@ class HotspotFdTestFixture : public ::testing::Test {
         }
 };
 
-extern char TunnelStatus[128];
+extern char TunnelStatus[8];
 
 void createFile(const char* fname) {
     if ((file = fopen(fname, "r"))) {
