@@ -137,7 +137,8 @@ bool deleteSharedMem(int key, bool snooper);
 void hotspot_start();
 
 #ifdef UNIT_TEST_DOCKER_SUPPORT
-bool set_tunnelstatus(char* status);
+rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* opts);
+rbusError_t TunnelStatus_SetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* opts);
 void notify_tunnel_status(char *status);
 bool set_validatessid();
 bool get_validate_ssid();
