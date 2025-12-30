@@ -116,7 +116,7 @@ STATIC char ssid_reset_mask = 0x0;
 #if defined (_BWG_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
 #define SSIDVAL 5
 #define PARAM_COUNT_ 5
-#elif defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+#elif (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
 #define SSIDVAL 6
 #define PARAM_COUNT_ 6
 #else
@@ -461,7 +461,7 @@ STATIC bool set_validatessid() {
 #if defined(RDK_ONEWIFI)
 #if defined (_BWG_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
     const char *hotspot_ssids[]={"5","6","9","10","16"};
-#elif defined (_XB8_PRODUCT_REQ_)
+#elif defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)
     const char *hotspot_ssids[]={"5","6","9","10","19","21"};
 #else
     const char *hotspot_ssids[]={"5","6","9","10"};
@@ -511,7 +511,7 @@ STATIC bool set_validatessid() {
 #if defined (_BWG_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
     const char ap16[]="Device.WiFi.SSID.16.Enable";
     const char *paramNames[]={ap5,ap6,ap9,ap10,ap16};
-#elif defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+#elif (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
     const char ap19[]="Device.WiFi.SSID.19.Enable";
     const char ap21[]="Device.WiFi.SSID.21.Enable";
     const char *paramNames[]={ap5,ap6,ap9,ap10,ap19,ap21};
@@ -641,7 +641,7 @@ STATIC bool get_validate_ssid()
 #if defined (_BWG_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
     const char ap16[]="Device.WiFi.SSID.16.Enable";
     const char *paramNames[]={ap5,ap6,ap9,ap10,ap16};
-#elif defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+#elif (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
     const char ap19[]="Device.WiFi.SSID.19.Enable";
     const char ap21[]="Device.WiFi.SSID.21.Enable";
     const char *paramNames[]={ap5,ap6,ap9,ap10,ap19,ap21};
@@ -671,7 +671,7 @@ STATIC bool get_validate_ssid()
     {
 #if defined (_BWG_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
       CcspTraceInfo(("Retrieving previous ssid info ssid 5 = %s ssid 6 = %s ssid 9 = %s ssid 10 = %s ssid 16 = %s\n",valStructs[0]->parameterValue,valStructs[1]->parameterValue, valStructs[2]->parameterValue,valStructs[3]->parameterValue,valStructs[4]->parameterValue));
-#elif defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+#elif (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
       CcspTraceInfo(("Retrieving previous ssid info ssid 5 = %s ssid 6 = %s ssid 9 = %s ssid 10 = %s ssid 19 = %s ssid 21 = %s\n",valStructs[0]->parameterValue,valStructs[1]->parameterValue, valStructs[2]->parameterValue,valStructs[3]->parameterValue,valStructs[4]->parameterValue,valStructs[5]->parameterValue));
 #else
       CcspTraceInfo(("Retrieving previous ssid info ssid 5 = %s ssid 6 = %s ssid 9 = %s ssid 10 = %s\n",valStructs[0]->parameterValue,valStructs[1]->parameterValue, valStructs[2]->parameterValue,valStructs[3]->parameterValue));
