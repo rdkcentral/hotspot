@@ -143,7 +143,7 @@ BOOL HotspotConnectedDevice_SetParamStringValue(ANSC_HANDLE hInsContext, char* P
 	{
 	        CcspTraceInfo(("Added case, Client with MAC:%s will be added\n", l_cMacAddr));
 	        t2_event_d("WIFI_INFO_Hotspot_client_connected", 1);
-		updateRssiForClient(l_cMacAddr, l_iRssi);
+		updateRssiForClient(l_cMacAddr, l_iRssi, l_iSsidIndex);
 	}
 	else
 	{

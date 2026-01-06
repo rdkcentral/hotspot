@@ -188,6 +188,7 @@ typedef struct
     char dhcp_status[kSnooper_MaxStatusLen];
     char hostname[kSnooper_MaxHostNameLen];
     int rssi;
+    int vapIndex;
 	int noOfTriesForOnlineCheck;
 } snooper_client_list;
 
@@ -222,12 +223,28 @@ typedef struct
 
 }  snooper_statistics_s;
 
+typedef struct {
+    struct timespec dhcp_timer_start;
+    bool timer_running;
+    bool dhcp_discover;
+    bool dhcp_request;
+    bool dhcp_offer;
+    bool dhcp_ack;
+    char ipv4_addr[INET_ADDRSTRLEN];
+} dhcp_client_state_t;
+
+typedef struct client_node {
+    char mac[18];
+    dhcp_client_state_t state;
+    struct client_node *next;
+} client_node_t;
+
 #define kSnooper_Statistics           865889 // key used for shared memory
 #define kSnooper_SharedMemSize        sizeof(snooper_statistics_s)
 #define DNSMASQ_LEASES_FILE 		  "/nvram/dnsmasq.leases"
 
 void *dhcp_snooper_init(void *); 
-void updateRssiForClient(char* pRemote_id, int rssi);
+void updateRssiForClient(char* pRemote_id, int rssi,int vap_index);
 void snoop_RemoveClientListEntry(char *pRemote_id);
 uint16_t snoop_ipChecksum(struct iphdr * header);
 void snoop_log(void);
