@@ -59,28 +59,6 @@
 #include <stdbool.h>
 
 
-#define LOG_FILE_PATH "/tmp/DBG_FILE.txt"
-
-void DBG_WRITE(const char *format, ...) {
-  FILE *log_file = fopen(LOG_FILE_PATH, "a+");
-  if (log_file == NULL) {
-    perror("Error opening log file");
-    return;
-  }
-
-  va_list args;
-  va_start(args, format);
-  vfprintf(log_file, format, args);
-  va_end(args);
-
-  fprintf(log_file, "\n");
-  fclose(log_file);
-}
-
-
-
-
-
 #define mylist_safe(p, q, h) \
          if ((h)->n == NULL ) { \
                 SET_LIST_HEAD((h)); \
@@ -187,10 +165,10 @@ int publishToOneWifi(char *cmdStr)
     rbusError_t rc = RBUS_ERROR_SUCCESS;
     rbusValue_t value;
     
-    DBG_WRITE("Command string: %s - %s\n", cmdStr, __FUNCTION__);
+    msg_debug("Command string: %s - %s\n", cmdStr, __FUNCTION__);
     
     if (cmdStr == NULL || strlen(cmdStr) == 0) {
-        DBG_WRITE("mac address empty and not sending rbus event to onewifi: %d\n", __LINE__);
+        msg_debug("mac address empty and not sending rbus event to onewifi: %d\n", __LINE__);
         return 0;
     }
     
@@ -205,18 +183,18 @@ int publishToOneWifi(char *cmdStr)
     rbusValue_Release(value);
     
     if (rc != RBUS_ERROR_SUCCESS) {
-        DBG_WRITE("Failed to set RBus property: error code %d (line %d)\n", rc, __LINE__);
+        msg_debug("Failed to set RBus property: error code %d (line %d)\n", rc, __LINE__);
         return 0;
     }
     
-    DBG_WRITE("Successfully published to OneWifi via RBus\n");
+    msg_debug("Successfully published to OneWifi via RBus\n");
     return 1;
 }
 
 dhcp_client_state_t* get_client_state(const char *mac) 
 {
     if (mac == NULL || strlen(mac) == 0) {
-        DBG_WRITE("get_client_state: Invalid MAC address input\n");
+        msg_debug("get_client_state: Invalid MAC address input\n");
         return NULL;
     }
 
@@ -230,11 +208,11 @@ dhcp_client_state_t* get_client_state(const char *mac)
     // Not found, create new
     client_node_t *new_node = (client_node_t *)calloc(1, sizeof(client_node_t));
     if (!new_node) {
-        DBG_WRITE("get_client_state: Memory allocation failed for MAC %s\n", mac);
+        msg_debug("get_client_state: Memory allocation failed for MAC %s\n", mac);
         return NULL;
     }
     strncpy(new_node->mac, mac, sizeof(new_node->mac) - 1);
-    DBG_WRITE("new_node->mac: %s\n", new_node->mac);
+    msg_debug("new_node->mac: %s\n", new_node->mac);
     new_node->mac[sizeof(new_node->mac) - 1] = '\0';
     new_node->next = client_list;
     client_list = new_node;
@@ -284,12 +262,12 @@ static void constructCommand(char *macaddr, char *cmd)
     }
     if(already_in_list)
     {
-        DBG_WRITE("Client:%s is present in list\n", macaddr);
+        msg_debug("Client:%s is present in list\n", macaddr);
         sprintf(macaddrWithIndex, "%s_%d", macaddr, pNewClient->client.vapIndex);
         macaddrWithIndex[sizeof(macaddrWithIndex) - 1] = '\0';
     }
     strncpy(cmd, macaddrWithIndex, sizeof(macaddrWithIndex) - 1);
-    DBG_WRITE("constructCommand :%s\n", cmd);
+    msg_debug("constructCommand :%s\n", cmd);
     pthread_mutex_unlock(&global_stats_mutex);
 
 }
@@ -1237,7 +1215,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
     dhcp_client_state_t *state = get_client_state(mac_str);
     if (!state)
     {
-        DBG_WRITE("Failed to create client state for MAC %s\n", mac_str);
+        msg_debug("Failed to create client state for MAC %s\n", mac_str);
     }
 
     // Check if the timer has exceeded 10 seconds
@@ -1248,7 +1226,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
                 constructCommand(mac_str, madaddrwithIndex);
                 if(publishToOneWifi(madaddrwithIndex))
                 {
-                    DBG_WRITE("DHCP ACK not received for client MAC.Publising RBus event Timer stopped. Time elapsed: %ld s - line %d\n",
+                    msg_debug("DHCP ACK not received for client MAC.Publising RBus event Timer stopped. Time elapsed: %ld s - line %d\n",
                              (elapsed_time/1000), __LINE__);
                 }
             }
@@ -1277,7 +1255,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 
         if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Discover)
         {
-            DBG_WRITE("%s:%d>  DHCP Discover\n", __FUNCTION__, __LINE__);
+            msg_debug("%s:%d>  DHCP Discover\n", __FUNCTION__, __LINE__);
             if (!state->timer_running) {
                 clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
                 state->timer_running = true;
@@ -1290,7 +1268,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
         }
         if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Request)
         {
-            DBG_WRITE("%s:%d>  DHCP Request\n", __FUNCTION__, __LINE__);
+            msg_debug("%s:%d>  DHCP Request\n", __FUNCTION__, __LINE__);
             state->dhcp_request = true;
         }
         rc = strcpy_s(gCircuit_id, sizeof(gCircuit_id), gSnoopCircuitIDList[queue_number]);
@@ -1405,12 +1383,12 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 		{
             if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Offer)
             {
-                DBG_WRITE("%s:%d>  DHCP Offer\n", __FUNCTION__, __LINE__);
+                msg_debug("%s:%d>  DHCP Offer\n", __FUNCTION__, __LINE__);
                 state->dhcp_offer = true;
             }
             else if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_ACK)
             {
-                DBG_WRITE("%s:%d>  DHCP ACK\n", __FUNCTION__, __LINE__);
+                msg_debug("%s:%d>  DHCP ACK\n", __FUNCTION__, __LINE__);
                 memset(state->ipv4_addr, 0, sizeof(state->ipv4_addr));
                 inet_ntop(AF_INET, &(pktData[44]), state->ipv4_addr, INET_ADDRSTRLEN);
                 if (strcmp(state->ipv4_addr, "172.20.20.20") == 0) {
@@ -1420,7 +1398,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
             if (state->timer_running && state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack) 
             {
                 long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
-                DBG_WRITE("All DHCP states completed with ACK IP 172.20.20.20 in %ld ms. Timer stopped.\n", elapsed_time);
+                msg_debug("All DHCP states completed with ACK IP 172.20.20.20 in %ld ms. Timer stopped.\n", elapsed_time);
                 state->timer_running = false;
                 state->dhcp_discover = state->dhcp_request = state->dhcp_offer = state->dhcp_ack = false;
                 remove_client_state(mac_str);
