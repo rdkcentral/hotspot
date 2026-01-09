@@ -247,19 +247,11 @@ int jansson_store_tunnel_info(tunneldoc_t *pTunnelVap) {
         outt = json_dump_file(root, "/tmp/hotspot.json", 0);
         CcspTraceInfo(("HOTSPOT_LIB : JSON file ret...%d\n", outt));
 
-#ifdef _64BIT_ARCH_SUPPORT_
         if (json_arr_vlan_id != NULL)    json_decref(json_arr_vlan_id);
         if (json_arr_vap_enable != NULL) json_decref(json_arr_vap_enable);
         if (json_arr_vap_name != NULL)   json_decref(json_arr_vap_name);
         if (json_tun != NULL)            json_decref(json_tun);
         if (root != NULL)                json_decref(root);
-#else
-        json_decref(json_arr_vlan_id);
-        json_decref(json_arr_vap_enable);
-        json_decref(json_arr_vap_name);
-        json_decref(json_tun);
-        json_decref(root);
-#endif
         return 0;
     } else
     {
@@ -311,19 +303,11 @@ int jansson_store_tunnel_info(tunneldoc_t *pTunnelVap) {
         outt = json_dump_file(root, "/nvram/hotspot.json", 0);
         CcspTraceInfo(("HOTSPOT_LIB : JSON file ret...%d\n", outt));
 
-#ifdef _64BIT_ARCH_SUPPORT_
         if (json_arr_vlan_id != NULL)    json_decref(json_arr_vlan_id);
         if (json_arr_vap_enable != NULL) json_decref(json_arr_vap_enable);
         if (json_arr_vap_name != NULL)   json_decref(json_arr_vap_name);
         if (json_tun != NULL)            json_decref(json_tun);
         if (root != NULL)                json_decref(root);
-#else
-        json_decref(json_arr_vlan_id);
-        json_decref(json_arr_vap_enable);
-        json_decref(json_arr_vap_name);
-        json_decref(json_tun);
-        json_decref(root);
-#endif
         return 1;
     } 
 }
