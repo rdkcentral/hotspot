@@ -30,7 +30,7 @@
 #if defined (_CBR_PRODUCT_REQ_)
    #define MAX_VAP      5
    #define PSM_VLAN_PUBLIC        "dmsb.l2net.11.Vid"
-#elif (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
+#elif defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
    #define MAX_VAP      6
 #else
    #define MAX_VAP      4

@@ -38,7 +38,7 @@ vlanSyncData_s gVlanSyncData[] = {
     {VAP_NAME_8, "ath8", "brlan4", 0x4, 9, 3},
     {VAP_NAME_9, "ath9", "brlan5", 0x8, 10, 4}
 
-#elif (defined(_XB8_PRODUCT_REQ_) || defined(_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
+#elif defined(_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
 
     {VAP_NAME_4, "wl0.3", "brlan2", 0x1, 5, 1},
     {VAP_NAME_5, "wl1.3", "brlan3", 0x2, 6, 2},

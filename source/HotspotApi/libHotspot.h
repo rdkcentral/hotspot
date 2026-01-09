@@ -58,7 +58,7 @@
 #define VAP_NAME_8             "hotspot_secure_2g"
 #define VAP_NAME_9             "hotspot_secure_5g"
 #define VAP_NAME_10            "new_hotspot_open_2g"
-#if (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
+#if defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
 #define VAP_NAME_11             "hotspot_open_6g"
 #define VAP_NAME_12             "hotspot_secure_6g"
 #endif
@@ -74,7 +74,7 @@
 #define PSM_VLAN_SECURE_2G     "dmsb.l2net.7.Vid"
 #define PSM_VLAN_SECURE_5G     "dmsb.l2net.8.Vid"
 
-#if (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
+#if defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
 #define PSM_VLAN_OPEN_6G       "dmsb.l2net.15.Vid"
 #define PSM_VLAN_SECURE_6G     "dmsb.l2net.16.Vid"
 #endif
