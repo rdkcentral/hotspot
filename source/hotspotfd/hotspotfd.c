@@ -352,6 +352,20 @@ STATIC void notify_tunnel_status(char *status)
     }
 }
 
+rbusError_t TunnelStatus_EventSubHandler(rbusHandle_t handle, rbusEventSubAction_t action, const char* eventName,
+        rbusFilter_t filter, int32_t interval, bool* autoPublish)
+{
+    (void)handle;
+    (void)filter;
+    (void)interval;
+
+    CcspTraceInfo(("%d: %s %s\n", __LINE__, eventName,
+                action == RBUS_EVENT_ACTION_SUBSCRIBE ? "subscribed" : "unsubscribed"));
+
+    *autoPublish = false;
+    return RBUS_ERROR_SUCCESS;
+}
+
 rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* opts)
 {
     (void)handle;
@@ -2057,7 +2071,7 @@ void hotspot_start()
 
 #ifdef WAN_FAILOVER_SUPPORTED
     rbusDataElement_t dataElements[1] = {
-        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, NULL, NULL}}
+        {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, TunnelStatus_EventSubHandler, NULL}}
     };
     ret = rbus_open(&handle, "HotspotTunnelEvent");
     if(ret != RBUS_ERROR_SUCCESS)
