@@ -61,9 +61,7 @@
 #include "ansc_platform.h"
 #include "libHotspot.h"
 #include "libHotspotApi.h"
-#ifdef WAN_FAILOVER_SUPPORTED
 #include <rbus.h>
-#endif
 
 #ifdef __HAVE_SYSEVENT_STARTUP_PARAMS__
     #include <sysevent/sysevent.h>
@@ -189,9 +187,9 @@ STATIC char old_wan_ipv6[kMax_IPAddressLength];
 #ifdef WAN_FAILOVER_SUPPORTED
 extern int hotspot_wan_failover(bool isRemoteWANEnabled);
 extern int PsmGet(const char *param, char *value, int size);
+#endif
 STATIC pthread_t rbus_tid;
 rbusHandle_t handle;
-#endif
 
 STATIC pthread_t dhcp_snooper_tid;
 
@@ -1957,8 +1955,6 @@ STATIC int hotspotfd_getStartupParameters(void)
 }
 #endif
 
-#ifdef WAN_FAILOVER_SUPPORTED
-
 STATIC void HotspotTunnelEventHandler(
     rbusHandle_t handle,
     rbusEvent_t const* event,
@@ -1985,9 +1981,7 @@ STATIC void HotspotTunnelEventHandler(
         }
     }
 }
-#endif
 
-#ifdef WAN_FAILOVER_SUPPORTED
 void  *handle_rbusSubscribe() {
     int   ret   = 0;
     bool retry_again = true;
@@ -2011,7 +2005,6 @@ void  *handle_rbusSubscribe() {
     }
     return NULL;
 }
-#endif
 
 void hotspot_start()
 {
@@ -2069,7 +2062,6 @@ void hotspot_start()
     v_secure_system("touch /tmp/hotspotfd_up");
     hotspotfd_log();
 
-#ifdef WAN_FAILOVER_SUPPORTED
     rbusDataElement_t dataElements[1] = {
         {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, TunnelStatus_EventSubHandler, NULL}}
     };
@@ -2090,7 +2082,6 @@ void hotspot_start()
     }
     pthread_create(&rbus_tid, NULL, handle_rbusSubscribe, NULL);
 
-#endif
     if (sysevent_set(sysevent_fd_gs, sysevent_token_gs, kHotspotfd_tunnelEP, kDefault_DummyEP, 0))
     {
         CcspTraceError(("sysevent set %s failed for %s\n", kHotspotfd_tunnelEP, kDefault_DummyEP));
