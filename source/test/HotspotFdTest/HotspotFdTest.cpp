@@ -39,6 +39,7 @@
 #include <mocks/mock_securewrapper.h>
 #include <mocks/mock_nfqueue.h>
 #include <mocks/mock_socket.h>
+#include <mocks/mock_rbus.h>
 #include "test/mocks/mock_hotspotApi.h"
 
 extern "C" {
@@ -69,6 +70,7 @@ SecureWrapperMock * g_securewrapperMock = nullptr;
 HotspotApiMock * g_hotspotApiMock = nullptr;
 NfQueueMock * g_nfQueueMock = nullptr;
 SocketMock * g_socketMock = nullptr;
+rbusMock *g_rbusMock = nullptr;
 
 class HotspotFdTestFixture : public ::testing::Test {
     protected:
@@ -85,6 +87,7 @@ class HotspotFdTestFixture : public ::testing::Test {
         HotspotApiMock mockedHotspotApi;
         NfQueueMock mockedNfQueue;
         SocketMock mockedSocket;
+        rbusMock mockedRbus;
 
         HotspotFdTestFixture()
         {
@@ -104,6 +107,7 @@ class HotspotFdTestFixture : public ::testing::Test {
             g_hotspotApiMock = &mockedHotspotApi;
             g_nfQueueMock = &mockedNfQueue;
             g_socketMock = &mockedSocket;
+            g_rbusMock = &mockedRbus;
         }
         virtual ~HotspotFdTestFixture()
         {
@@ -120,6 +124,7 @@ class HotspotFdTestFixture : public ::testing::Test {
             g_hotspotApiMock = nullptr;
             g_nfQueueMock = nullptr;
             g_socketMock = nullptr;
+            g_rbusMock = nullptr;
         }
 
         virtual void SetUp()
@@ -148,6 +153,8 @@ class HotspotFdTestFixture : public ::testing::Test {
                 ::testing::UnitTest::GetInstance()->current_test_case()->name());
         }
 };
+
+extern char TunnelStatus[8];
 
 void createFile(const char* fname) {
     if ((file = fopen(fname, "r"))) {
@@ -414,58 +421,136 @@ TEST_F(HotspotFdTestFixture, deleteSharedMem_CASE_2) {
     EXPECT_EQ(true, result);
 }
 
-TEST_F(HotspotFdTestFixture, set_tunnelstatus) {
-    bool result;
+TEST_F(HotspotFdTestFixture, notify_tunnel_status) {
     char status[] = "Up";
-    char mockFaultParam[] = "TRUE";
 
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-
-    result = set_tunnelstatus(status);
-    EXPECT_EQ(true, result);
-}
-
-TEST_F(HotspotFdTestFixture, notify_tunnel_status_UP) {
-    char status[] = "Up";
-    char mockFaultParam[] = "TRUE";
-
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), _))
-    .Times(1).WillOnce(Return(CCSP_SUCCESS));
+    EXPECT_CALL(*g_rbusMock, rbusValue_Init(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusValue_SetString(_, StrEq(status))).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Init(_, nullptr)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_SetValue(_, StrEq("TunnelStatus"), _)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusEvent_Publish(_, _)).Times(1).WillOnce(Return(RBUS_ERROR_SUCCESS));
+    EXPECT_CALL(*g_rbusMock, rbusValue_Release(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Release(_)).Times(1);
 
     notify_tunnel_status(status);
+
+    EXPECT_STREQ("Up", TunnelStatus);
+    EXPECT_EQ(true, gVapIsUp);
 }
 
-TEST_F(HotspotFdTestFixture, notify_tunnel_status_DOWN) {
+TEST_F(HotspotFdTestFixture, notify_tunnel_status_Down) {
     char status[] = "Down";
-    char mockFaultParam[] = "False";
 
-    EXPECT_CALL(*g_anscWrapperApiMock, AnscCloneString(status)).Times(1).WillOnce(Return(status));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_setParameterValues(_, _, _, _, _, _, _, _, _))
-    .Times(1)
-    .WillOnce(testing::DoAll(
-        testing::WithArg<8>([&](char** faultParam){
-        *faultParam = mockFaultParam;
-        }),
-    Return(CCSP_SUCCESS)));
-    EXPECT_CALL(*g_baseapiMock, CcspBaseIf_SendSignal_WithData(_, StrEq("Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus"), _))
-    .Times(1).WillOnce(Return(CCSP_SUCCESS));
+    EXPECT_CALL(*g_rbusMock, rbusValue_Init(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusValue_SetString(_, StrEq(status))).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Init(_, nullptr)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_SetValue(_, StrEq("TunnelStatus"), _)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusEvent_Publish(_, _)).Times(1).WillOnce(Return(RBUS_ERROR_SUCCESS));
+    EXPECT_CALL(*g_rbusMock, rbusValue_Release(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Release(_)).Times(1);
 
     notify_tunnel_status(status);
+
+    EXPECT_STREQ("Down", TunnelStatus);
+    EXPECT_EQ(false, gVapIsUp);
+}
+
+TEST_F(HotspotFdTestFixture, TunnelStatus_GetStringHandler) {
+    rbusHandle_t handle = nullptr;
+    rbusProperty_t property = reinterpret_cast<rbusProperty_t>(0x1); // dummy non-null
+    rbusGetHandlerOptions_t* opts = nullptr;
+
+    strncpy(TunnelStatus, "Up", sizeof(TunnelStatus) - 1);
+    TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_Init(_))
+        .Times(1);
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_SetString(_, StrEq("Up")))
+        .Times(1);
+
+    EXPECT_CALL(*g_rbusMock, rbusProperty_SetValue(property, _))
+        .Times(1);
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_Release(_))
+        .Times(1);
+
+    rbusError_t result = TunnelStatus_GetStringHandler(handle, property, opts);
+
+    EXPECT_EQ(RBUS_ERROR_SUCCESS, result);
+}
+
+TEST_F(HotspotFdTestFixture, TunnelStatus_SetStringHandler_ValidChange) {
+    rbusHandle_t handle = nullptr;
+    rbusProperty_t property = reinterpret_cast<rbusProperty_t>(0x1); 
+    rbusSetHandlerOptions_t* opts = nullptr;
+
+    strncpy(TunnelStatus, "Down", sizeof(TunnelStatus) - 1);
+    TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
+
+    rbusValue_t val = reinterpret_cast<rbusValue_t>(0x2);
+
+    EXPECT_CALL(*g_rbusMock, rbusProperty_GetValue(property))
+        .Times(1)
+        .WillOnce(Return(val));
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_GetString(val, _))
+        .Times(1)
+        .WillOnce(Return("Up"));
+
+    rbusError_t result = TunnelStatus_SetStringHandler(handle, property, opts);
+
+    EXPECT_EQ(RBUS_ERROR_SUCCESS, result);
+    EXPECT_STREQ("Up", TunnelStatus);
+}
+
+TEST_F(HotspotFdTestFixture, TunnelStatus_SetStringHandler_InvalidValue) {
+    rbusHandle_t handle = nullptr;
+    rbusProperty_t property = reinterpret_cast<rbusProperty_t>(0x1);
+    rbusSetHandlerOptions_t* opts = nullptr;
+
+    strncpy(TunnelStatus, "Down", sizeof(TunnelStatus) - 1);
+    TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
+
+    rbusValue_t val = reinterpret_cast<rbusValue_t>(0x2);
+
+    EXPECT_CALL(*g_rbusMock, rbusProperty_GetValue(property))
+        .Times(1)
+        .WillOnce(Return(val));
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_GetString(val, _))
+        .Times(1)
+        .WillOnce(Return("InvalidStatus"));
+
+    rbusError_t result = TunnelStatus_SetStringHandler(handle, property, opts);
+
+    EXPECT_EQ(RBUS_ERROR_INVALID_INPUT, result);
+    EXPECT_STREQ("Down", TunnelStatus);
+
+}
+
+TEST_F(HotspotFdTestFixture, TunnelStatus_SetStringHandler_NoChange) {
+    rbusHandle_t handle = nullptr;
+    rbusProperty_t property = reinterpret_cast<rbusProperty_t>(0x1);
+    rbusSetHandlerOptions_t* opts = nullptr;
+
+    strncpy(TunnelStatus, "Up", sizeof(TunnelStatus) - 1);
+    TunnelStatus[sizeof(TunnelStatus) - 1] = '\0';
+
+    rbusValue_t val = reinterpret_cast<rbusValue_t>(0x2);
+
+    EXPECT_CALL(*g_rbusMock, rbusProperty_GetValue(property))
+        .Times(1)
+        .WillOnce(Return(val));
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_GetString(val, _))
+        .Times(1)
+        .WillOnce(Return("Up"));
+
+    rbusError_t result = TunnelStatus_SetStringHandler(handle, property, opts);
+
+    EXPECT_EQ(RBUS_ERROR_SUCCESS, result);
+    EXPECT_STREQ("Up", TunnelStatus);
 }
 
 TEST_F(HotspotFdTestFixture, set_validatessid_CASE1) {
