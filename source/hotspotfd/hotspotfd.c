@@ -186,11 +186,11 @@ STATIC bool wanFailover = false; //Always false as long as wan failover does'nt 
 STATIC char old_wan_ipv4[kMax_IPAddressLength];
 STATIC char old_wan_ipv6[kMax_IPAddressLength];
 
-rbusHandle_t handle;
 #ifdef WAN_FAILOVER_SUPPORTED
 extern int hotspot_wan_failover(bool isRemoteWANEnabled);
 extern int PsmGet(const char *param, char *value, int size);
 STATIC pthread_t rbus_tid;
+rbusHandle_t handle;
 #endif
 
 #define HOTSPOT_NUM_OF_RBUS_PARAMS  sizeof(hotspotRbusDataElements)/sizeof(hotspotRbusDataElements[0])
