@@ -2156,20 +2156,6 @@ void hotspot_start()
 
 #endif
 
-    int rc = RBUS_ERROR_SUCCESS;
-    // Register data elements
-    rc = rbus_regDataElements(handle, HOTSPOT_NUM_OF_RBUS_PARAMS, hotspotRbusDataElements);
-
-    if (rc != RBUS_ERROR_SUCCESS)
-    {
-        CcspTraceError(("rbus register data elements failed\n"));
-        return;
-    }
-    else
-    {
-        CcspTraceInfo(("%s: rbus register data elements success\n", __FUNCTION__));
-    }
-
     if (sysevent_set(sysevent_fd_gs, sysevent_token_gs, kHotspotfd_tunnelEP, kDefault_DummyEP, 0))
     {
         CcspTraceError(("sysevent set %s failed for %s\n", kHotspotfd_tunnelEP, kDefault_DummyEP));
