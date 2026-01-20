@@ -29,8 +29,8 @@ AM_LDFLAGS = -lpthread -lz -lsysevent -lsyscfg -lulog -llmapi -lnetfilter_queue 
 CcspHotspot_SOURCES = hotspotfd.c dhcpsnooper.c ssp_messagebus_interface.c ssp_main.c ssp_action.c cosa_hotspot_dml.c plugin_main.c dm_pack_datamodel.c
 
 if FEATURE_WAN_FAIL_OVER
-AM_CFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/rbus
 AM_CFLAGS += -DWAN_FAILOVER_SUPPORTED
-AM_LDFLAGS += -lrbus
 endif
+AM_CFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/rbus
+AM_LDFLAGS += -lrbus
 CcspHotspot_LDADD = ${top_builddir}/source/HotspotApi/libHotspotApi.la
