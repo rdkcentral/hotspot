@@ -136,7 +136,7 @@ static char g_cInformIpForQueue[kSnoop_MaxCircuitIDs][INET_ADDRSTRLEN];
 extern vlanSyncData_s gVlanSyncData[];
 extern int gVlanSyncDataSize;
 client_node_t *client_list = NULL;
-extern rbusHandle_t handle;
+extern rbusHandle_t disassoc_rbus_handle;
 
 #if 0
 static void snoop_setDhcpRelayAgentAddAgentOptions(int aao)
@@ -177,7 +177,7 @@ int publishToOneWifi(char *cmdStr)
     rbusValue_SetString(value, cmdStr);
     
     // Set property using RBus
-    rc = rbus_set(handle, "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient", value, NULL);
+    rc = rbus_set(disassoc_rbus_handle, "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient", value, NULL);
     
     // Clean up
     rbusValue_Release(value);

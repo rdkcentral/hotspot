@@ -196,6 +196,7 @@ rbusHandle_t handle;
 #define HOTSPOT_NUM_OF_RBUS_PARAMS  sizeof(hotspotRbusDataElements)/sizeof(hotspotRbusDataElements[0])
 #define HIPADDR "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient"
 static rbusError_t rbus_privateIPAddr_SetStringHandler(rbusHandle_t handle, rbusProperty_t prop, rbusSetHandlerOptions_t* opts);
+rbusHandle_t disassoc_rbus_handle;
 
 STATIC pthread_t dhcp_snooper_tid;
 
@@ -309,7 +310,7 @@ void dhcpClientPrivateIpAddressPublish(  char* eventData)
     event.data = rd;
     event.type = RBUS_EVENT_GENERAL;
 
-    int rc = rbusEvent_Publish(handle, &event);
+    int rc = rbusEvent_Publish(disassoc_rbus_handle, &event);
     if(rc != RBUS_ERROR_SUCCESS){
         if (rc == RBUS_ERROR_NOSUBSCRIBERS) {
             CcspTraceInfo(("%s: No subscribers found\n", __FUNCTION__));
@@ -2057,6 +2058,35 @@ void  *handle_rbusSubscribe() {
 }
 #endif
 
+//Initialize rbus for Dissociation of private client parameter
+rbusError_t hotspotDisassocClientRbusInit()
+{
+    int rc = RBUS_ERROR_SUCCESS;
+    if(RBUS_ENABLED != rbus_checkStatus())
+    {
+        CcspTraceWarning(("%s: RBUS not available. Events are not supported\n", __FUNCTION__));
+        return RBUS_ERROR_BUS_ERROR;
+    }
+    
+    rc = rbus_open(&disassoc_rbus_handle, "HotSpotPrivateClientDisable");
+    if (rc != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceWarning(("CMAgent rbus initialization failed\n"));
+        rc = RBUS_ERROR_NOT_INITIALIZED;
+        return rc;
+    }
+    
+    // Register data elements
+    rc = rbus_regDataElements(disassoc_rbus_handle, HOTSPOT_NUM_OF_RBUS_PARAMS, hotspotRbusDataElements);
+    if (rc != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceError(("rbus register data elements failed\n"));
+        rc = rbus_close(disassoc_rbus_handle);
+        return rc;
+    }
+    return rc;
+}
+
 void hotspot_start()
 {
     unsigned int keepAliveThreshold = 0;
@@ -2112,6 +2142,7 @@ void hotspot_start()
 
     v_secure_system("touch /tmp/hotspotfd_up");
     hotspotfd_log();
+    hotspotDisassocClientRbusInit();
 
 #ifdef WAN_FAILOVER_SUPPORTED
 
