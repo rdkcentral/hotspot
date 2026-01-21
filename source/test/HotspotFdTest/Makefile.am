@@ -32,7 +32,8 @@ HotspotFd_gtest_bin_CPPFLAGS = -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                  -I${top_srcdir}/source/util \
                                  -I${top_srcdir}/source/hotspotfd/include \
                                  -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/ccsp \
-                                 -DUNIT_TEST_DOCKER_SUPPORT
+                                 -DUNIT_TEST_DOCKER_SUPPORT \
+                                 -DWAN_FAILOVER_SUPPORTED
 
 HotspotFd_gtest_bin_SOURCES =   ${top_builddir}/source/hotspotfd/cosa_hotspot_dml.c \
                                 ${top_builddir}/source/hotspotfd/dhcpsnooper.c \
@@ -52,7 +53,8 @@ HotspotFd_gtest_bin_LDADD = $(HOME)/usr/local/lib/libmock_ccsp_common.la \
                               $(HOME)/usr/local/lib/libmock_file_io.la \
                               $(HOME)/usr/local/lib/libmock_secure_wrapper.la \
                               $(HOME)/usr/local/lib/libmock_nfqueue.la \
-                              $(HOME)/usr/local/lib/libmock_socket.la
+                              $(HOME)/usr/local/lib/libmock_socket.la \
+                              $(HOME)/usr/local/lib/libmock_rbus.la
 
 #Code Coverage Flags
 AM_CFLAGS += -fprofile-arcs -ftest-coverage

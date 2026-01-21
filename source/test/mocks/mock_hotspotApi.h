@@ -25,6 +25,8 @@ public:
     virtual ~HotspotApiInterface() {}
     virtual int ipAddress_version(char*) = 0;
     virtual void recreate_tunnel() = 0;
+    virtual int PsmGet(const char *param, char *value, int size) = 0;
+    virtual int hotspot_wan_failover(bool) = 0;
 };
 
 class HotspotApiMock: public HotspotApiInterface {
@@ -32,4 +34,6 @@ public:
     virtual ~HotspotApiMock() {}
     MOCK_METHOD1(ipAddress_version, int(char*));
     MOCK_METHOD0(recreate_tunnel, void());
+    MOCK_METHOD3(PsmGet, int(const char *param, char *value, int size));
+    MOCK_METHOD1(hotspot_wan_failover, int(bool));
 };
