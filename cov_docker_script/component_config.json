@@ -1,0 +1,123 @@
+{
+  "_comment": "Component Build Configuration for Coverity/Native Builds",
+  "_version": "2.0",
+  "_description": "Defines dependencies and build settings for the native component",
+  
+"dependencies": {
+    "_comment": "External repositories needed by this component",
+    "repos": [
+      {
+        "name": "rbus",
+        "repo": "https://github.com/rdkcentral/rbus.git",
+        "branch": "v2.7.0",
+        "header_paths": [
+          { "source": "include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "src/rbus", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "src/core", "destination": "$HOME/usr/include/rdkb" }
+        ],
+        "build": {
+          "type": "cmake",
+          "build_dir": "build",
+          "cmake_flags": "-DCMAKE_INSTALL_PREFIX=$HOME/usr -DCMAKE_PREFIX_PATH=/usr -DBUILD_FOR_DESKTOP=ON -DCMAKE_BUILD_TYPE=Debug"
+        }
+      },
+      {
+        "name": "common-library",
+        "repo": "https://github.com/rdkcentral/common-library.git",
+        "branch": "develop",
+        "header_paths": [
+          { "source": "source/ccsp/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/ccsp/components/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/ccsp/custom", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/cosa/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/cosa/include/linux", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/cosa/include/linux", "destination": "$HOME/usr/include/rdkb/linux" },
+          { "source": "source/cosa/package/slap/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/debug_api/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/util_api/http/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/util_api/ansc/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/ccsp/components/common/MessageBusHelper/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/dm_pack", "destination": "$HOME/usr/include/rdkb" }
+        ],
+        "build": {
+          "type": "script",
+          "script": "build_tools_workflows/cov_docker_script/common_external_build.sh"
+        }
+      },
+      {
+        "name": "gmock-broadband",
+        "repo": "https://github.com/rdkcentral/gmock-broadband.git",
+        "branch": "develop",
+        "header_paths": [
+          { "source": "docker_scripts/common_headers", "destination": "$HOME/usr/include/rdkb" }
+        ]
+      },
+      {
+        "name": "rdk_logger",
+        "repo": "https://github.com/rdkcentral/rdk_logger.git",
+        "branch": "main",
+        "header_paths": [
+          { "source": "include", "destination": "$HOME/usr/include/rdkb" }
+        ],
+        "build": {
+          "type": "autotools"
+        }
+      },
+      {
+        "name": "libSyscallWrapper",
+        "repo": "https://github.com/rdkcentral/libSyscallWrapper.git",
+        "branch": "develop",
+        "header_paths": [
+          { "source": "source", "destination": "$HOME/usr/include/rdkb" }
+        ]
+      },
+      {
+        "name": "Utopia",
+        "repo": "https://github.com/rdkcentral/utopia.git",
+        "branch": "develop",
+        "header_paths": [
+          { "source": "source/include/sysevent", "destination": "$HOME/usr/include/rdkb/sysevent" },
+          { "source": "source/include/syscfg", "destination": "$HOME/usr/include/rdkb/syscfg" },
+          { "source": "source/include", "destination": "$HOME/usr/include/rdkb/utctx" },
+          { "source": "source/include", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/utapi/lib", "destination": "$HOME/usr/include/rdkb/utapi" },
+          { "source": "source/include/ulog", "destination": "$HOME/usr/include/rdkb/ulog" },
+          { "source": "source/util/utils", "destination": "$HOME/usr/include/rdkb" },
+          { "source": "source/sysevent/lib", "destination": "$HOME/usr/include/rdkb/sysevent" },
+          { "source": "source/util/print_uptime", "destination": "$HOME/usr/include/rdkb" }
+        ],
+        "build": {
+          "type": "script",
+          "script": "build_tools_workflows/cov_docker_script/common_external_build.sh"
+        }
+      },
+      {
+        "name": "lan-manager-lite",
+        "repo": "https://github.com/rdkcentral/lan-manager-lite.git",
+        "branch": "develop",
+        "build": {
+          "type": "script",
+          "script": "build_tools_workflows/cov_docker_script/common_external_build.sh"
+        }
+      }
+      
+    ]
+  },
+  
+  "native_component": {
+    "_comment": "Configuration for the main component being built",
+    "name": "hotspot",
+    "include_path": "$HOME/usr/include/rdkb/",
+    "lib_output_path": "$HOME/usr/local/lib/",
+    "pre_build_commands": [
+      {
+        "description": "Generate dm_pack_datamodel.c from XML",
+        "command": "python3 $HOME/usr/include/rdkb/dm_pack_code_gen.py source/hotspotfd/config/hotspot.XML source/hotspotfd/dm_pack_datamodel.c"
+      }
+    ],
+    "build": {
+      "type": "autotools",
+      "configure_options_file": "cov_docker_script/configure_options.conf"
+    }
+  }
+}
