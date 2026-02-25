@@ -1257,7 +1257,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
         else
 #endif
 
-        if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Discover)
+        if(state != NULL && pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Discover)
         {
             msg_debug("%s:%d>  DHCP Discover\n", __FUNCTION__, __LINE__);
             if (!state->timer_running) {
@@ -1270,17 +1270,17 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
                 state->dhcp_ack = false;
             } 
         }
-        if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Request)
+        if(state !=NULL && pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Request)
         {
             msg_debug("%s:%d>  DHCP Request\n", __FUNCTION__, __LINE__);
             state->dhcp_request = true;
         }
         rc = strcpy_s(gCircuit_id, sizeof(gCircuit_id), gSnoopCircuitIDList[queue_number]);
-		if(rc != EOK)
-		{
-			ERR_CHK(rc);
-			return -1;
-		}
+	if(rc != EOK)
+	{
+             ERR_CHK(rc);
+             return -1;
+        }
         msg_debug("gCircuit_id: %s\n", gCircuit_id);
         sprintf(gRemote_id, "%02x:%02x:%02x:%02x:%02x:%02x", 
                 pktData[56], pktData[57], pktData[58], pktData[59], pktData[60], pktData[61]); 
@@ -1384,13 +1384,13 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
 
         if ( (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Offer) ||
 		 	 (pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_ACK))
-		{
-            if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Offer)
+	{
+            if(state != NULL && pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_Offer)
             {
                 msg_debug("%s:%d>  DHCP Offer\n", __FUNCTION__, __LINE__);
                 state->dhcp_offer = true;
             }
-            else if(pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_ACK)
+            else if(state != NULL && pktData[kSnoop_DHCP_Option53_Offset] == kSnoop_DHCP_ACK)
             {
                 msg_debug("%s:%d>  DHCP ACK\n", __FUNCTION__, __LINE__);
                 memset(state->ipv4_addr, 0, sizeof(state->ipv4_addr));
