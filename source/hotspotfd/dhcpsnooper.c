@@ -160,7 +160,7 @@ static enum agent_relay_mode_t snoop_getDhcpRelayAgentMode( )
 }
 #endif
 
-int publishToOneWifi(char *cmdStr)
+int publish_to_onewifi(char *cmdStr)
 {
     rbusError_t rc = RBUS_ERROR_SUCCESS;
     rbusValue_t value;
@@ -250,7 +250,7 @@ static void constructCommand(char *macaddr, char *cmd)
     snooper_priv_client_list * pNewClient;
     struct mylist_head * pos, * q;
     bool already_in_list = false;
-    char macaddrWithIndex[64] = {0};
+    char macaddr_with_index[64] = {0};
     pthread_mutex_lock(&global_stats_mutex);
     mylist_safe(pos, q, &gSnoop_ClientList.list) {
 
@@ -263,10 +263,10 @@ static void constructCommand(char *macaddr, char *cmd)
     if(already_in_list)
     {
         msg_debug("Client:%s is present in list\n", macaddr);
-        sprintf(macaddrWithIndex, "%s_%d", macaddr, pNewClient->client.vapIndex);
-        macaddrWithIndex[sizeof(macaddrWithIndex) - 1] = '\0';
+        sprintf(macaddr_with_index, "%s_%d", macaddr, pNewClient->client.vapIndex);
+        macaddr_with_index[sizeof(macaddr_with_index) - 1] = '\0';
     }
-    strncpy(cmd, macaddrWithIndex, sizeof(macaddrWithIndex) - 1);
+    strncpy(cmd, macaddr_with_index, sizeof(macaddr_with_index) - 1);
     msg_debug("constructCommand :%s\n", cmd);
     pthread_mutex_unlock(&global_stats_mutex);
 
@@ -1147,7 +1147,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
     struct iphdr *iph = NULL;
     /* Coverity Fix CID: 74885 UnInit var */
     char ipv4_addr[INET_ADDRSTRLEN] = {0};
-    char madaddrwithIndex[64] = {0};
+    char macaddr_with_index[64] = {0};
 
     // The iptables queue number is passed when this handler is registered
     // with nfq_create_queue
@@ -1218,13 +1218,16 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
         msg_debug("Failed to create client state for MAC %s\n", mac_str);
     }
 
-    // Check if the timer has exceeded 10 seconds
-    if (state->timer_running) {
+    // Check if the timer has exceeded 3 seconds
+    if (state != NULL && state->timer_running) 
+    {    
         long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
-        if (elapsed_time >= 3000) { // 10 seconds
-            if (!(state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack)) {
-                constructCommand(mac_str, madaddrwithIndex);
-                if(publishToOneWifi(madaddrwithIndex))
+        if (elapsed_time >= 3000) 
+        { 
+            if (!(state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack)) 
+            {
+                constructCommand(mac_str, macaddr_with_index);
+                if(publish_to_onewifi(macaddr_with_index))
                 {
                     msg_debug("DHCP ACK not received for client MAC.Publising RBus event Timer stopped. Time elapsed: %ld s - line %d\n",
                              (elapsed_time/1000), __LINE__);
@@ -1233,6 +1236,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
             state->timer_running = false;
             state->dhcp_discover = state->dhcp_request = state->dhcp_offer = state->dhcp_ack = false; // Reset for next session
             remove_client_state(mac_str);
+            state = NULL;
         }
     }
     // If gSnoopEnable is not set then just send the packet out
