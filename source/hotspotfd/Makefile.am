@@ -24,6 +24,7 @@ AM_CFLAGS += -I$(top_srcdir)/source/util
 AM_CFLAGS += -I$(top_srcdir)/source/hotspotfd/include
 AM_CFLAGS += -I$(top_srcdir)/source/HotspotApi
 AM_CFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/rbus
+AM_CFLAGS += -Wno-error=format
 
 AM_LDFLAGS = -lpthread -lz -lsysevent -lsyscfg -lulog -llmapi -lnetfilter_queue -lnfnetlink -lccsp_common -ltelemetry_msgsender -lsecure_wrapper -lprivilege -lrbus
 
