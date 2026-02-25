@@ -376,7 +376,7 @@ rbusError_t TunnelStatus_GetStringHandler(rbusHandle_t handle, rbusProperty_t pr
     rbusProperty_SetValue(property, val);
     rbusValue_Release(val);
     
-    print("Test coverity flow, %s");
+    printf("Test coverity flow, %s");
     return RBUS_ERROR_SUCCESS;
 }
 
