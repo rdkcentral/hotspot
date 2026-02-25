@@ -1399,7 +1399,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
                     state->dhcp_ack = true;
                 }
             }
-            if (state->timer_running && state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack) 
+            if (state != NULL && state->timer_running && state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack) 
             {
                 long elapsed_time = calculate_elapsed_time(state->dhcp_timer_start);
                 msg_debug("All DHCP states completed with ACK IP 172.20.20.20 in %ld ms. Timer stopped.\n", elapsed_time);
