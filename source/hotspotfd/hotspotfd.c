@@ -193,7 +193,7 @@ rbusHandle_t handle;
 
 #define HOTSPOT_NUM_OF_RBUS_PARAMS  sizeof(hotspotRbusDataElements)/sizeof(hotspotRbusDataElements[0])
 #define HIPADDR "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient"
-static rbusError_t rbus_privateIPAddr_SetStringHandler(rbusHandle_t handle, rbusProperty_t prop, rbusSetHandlerOptions_t* opts);
+static rbusError_t rbus_disassocEventSubHandler(rbusHandle_t handle, rbusEventSubAction_t action, const char* eventName, rbusFilter_t filter, int32_t interval, bool* autoPublish);
 rbusHandle_t disassoc_rbus_handle;
 
 STATIC pthread_t dhcp_snooper_tid;
@@ -288,64 +288,25 @@ Hotspotfd_MsgItem hotspotfdMsgArr[] = {
     rbusDataElement_t hotspotRbusDataElements[] = 
     {	
         /* RBUS_BOOLEAN */
-        {HIPADDR, RBUS_ELEMENT_TYPE_PROPERTY, {NULL, rbus_privateIPAddr_SetStringHandler, NULL, NULL, NULL, NULL}}
+        {HIPADDR, RBUS_ELEMENT_TYPE_EVENT, {NULL, NULL, NULL, NULL, rbus_disassocEventSubHandler, NULL}}
     };
 
-void dhcpClientPrivateIpAddressPublish(  char* eventData)
-{
-    rbusValue_t value;
-    rbusObject_t rd;
-    char eventName[64] = {0};
-
-    rbusValue_Init(&value);
-    rbusObject_Init(&rd, NULL);
-
-    snprintf(eventName, 64, "%s",HIPADDR);
-    rbusValue_SetString(value, eventData);
-
-    rbusObject_SetValue(rd, eventName, value);
-    
-    rbusEvent_t event;
-    event.name = eventName;
-    event.data = rd;
-    event.type = RBUS_EVENT_GENERAL;
-
-    int rc = rbusEvent_Publish(disassoc_rbus_handle, &event);
-    if(rc != RBUS_ERROR_SUCCESS){
-        if (rc == RBUS_ERROR_NOSUBSCRIBERS) {
-            CcspTraceInfo(("%s: No subscribers found\n", __FUNCTION__));
-        }
-        CcspTraceInfo(("%s:%d rbusEvent_Publish %s failed\n", __func__, __LINE__, event.name ));
-    }
-    rbusValue_Release(value);
-    rbusObject_Release(rd);
-}
-
 /**
- * @brief RBUS-compliant wrapper for setting the private IP address.
- * This function has the correct signature for an rbus setHandler.
+ * @brief Event subscription handler for RejectAssociatedClient.
+ * Called by RBus when a consumer (OneWifi) subscribes or unsubscribes.
  */
-static rbusError_t rbus_privateIPAddr_SetStringHandler(rbusHandle_t handle, rbusProperty_t prop, rbusSetHandlerOptions_t* opts)
+static rbusError_t rbus_disassocEventSubHandler(rbusHandle_t handle,
+    rbusEventSubAction_t action, const char* eventName,
+    rbusFilter_t filter, int32_t interval, bool* autoPublish)
 {
     UNREFERENCED_PARAMETER(handle);
-    UNREFERENCED_PARAMETER(opts);
+    UNREFERENCED_PARAMETER(filter);
+    UNREFERENCED_PARAMETER(interval);
 
-    char const* propName = rbusProperty_GetName(prop);
-    rbusValue_t value = rbusProperty_GetValue(prop);
-    char const* str_val = rbusValue_GetString(value, NULL);
-
-    if (!str_val)
-    {
-        CcspTraceWarning(("%s: Received NULL value for property %s\n", __FUNCTION__, propName));
-        return RBUS_ERROR_INVALID_INPUT;
-    }
-
-    CcspTraceInfo(("%s: Calling original handler for %s with value %s\n", __FUNCTION__, propName, str_val));
-
-    /* Call the original logic, which now correctly handles the void return */
-   // privateIPAddr_SetStringHandler(NULL, (char*)propName, (char*)str_val);
-    dhcpClientPrivateIpAddressPublish((char*)str_val);
-
+    *autoPublish = false;
+    CcspTraceInfo(("%s: %s event %s\n", __FUNCTION__,
+        action == RBUS_EVENT_ACTION_SUBSCRIBE ? "SUBSCRIBE" : "UNSUBSCRIBE",
+        eventName));
     return RBUS_ERROR_SUCCESS;
 }
 

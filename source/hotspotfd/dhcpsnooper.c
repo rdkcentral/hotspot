@@ -164,30 +164,39 @@ int publish_to_onewifi(char *cmdStr)
 {
     rbusError_t rc = RBUS_ERROR_SUCCESS;
     rbusValue_t value;
-    
+    rbusObject_t data;
+    rbusEvent_t event;
+
     msg_debug("Command string: %s - %s\n", cmdStr, __FUNCTION__);
-    
+
     if (cmdStr == NULL || strlen(cmdStr) == 0) {
         msg_debug("mac address empty and not sending rbus event to onewifi: %d\n", __LINE__);
         return 0;
     }
-    
-    // Initialize RBus value
+
+    // Initialize RBus value and object
     rbusValue_Init(&value);
     rbusValue_SetString(value, cmdStr);
-    
-    // Set property using RBus
-    rc = rbus_set(disassoc_rbus_handle, "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient", value, NULL);
-    
+    rbusObject_Init(&data, NULL);
+    rbusObject_SetValue(data, "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient", value);
+
+    // Publish event directly to subscribers (OneWifi)
+    event.name = "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient";
+    event.data = data;
+    event.type = RBUS_EVENT_GENERAL;
+
+    rc = rbusEvent_Publish(disassoc_rbus_handle, &event);
+
     // Clean up
     rbusValue_Release(value);
-    
+    rbusObject_Release(data);
+
     if (rc != RBUS_ERROR_SUCCESS) {
-        msg_debug("Failed to set RBus property: error code %d (line %d)\n", rc, __LINE__);
+        msg_debug("Failed to publish RBus event: error code %d (line %d)\n", rc, __LINE__);
         return 0;
     }
-    
-    msg_debug("Successfully published to OneWifi via RBus\n");
+
+    msg_debug("Successfully published deauth event to OneWifi via RBus\n");
     return 1;
 }
 
@@ -1227,7 +1236,7 @@ static int snoop_packetHandler(struct nfq_q_handle * myQueue, struct nfgenmsg *m
             if (!(state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack)) 
             {
                 constructCommand(mac_str, macaddr_with_index);
-                if(publish_to_onewifi(macaddr_with_index))
+                if (macaddr_with_index[0] != '\0' && publish_to_onewifi(macaddr_with_index))
                 {
                     msg_debug("DHCP ACK not received for client MAC.Publising RBus event Timer stopped. Time elapsed: %ld s - line %d\n",
                              (elapsed_time/1000), __LINE__);
