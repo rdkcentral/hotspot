@@ -18,6 +18,7 @@
 */
 
 #include <netinet/in.h>
+#include <stdlib.h>
 #include "libHotspot.h"
 #include "libHotspotApi.h"
 #include "webconfig_framework.h"
@@ -59,6 +60,34 @@ tunnel_params oldTunnelData = {
 
 tunneldoc_t     *tempTunnelData = NULL;
 
+static void coverity_dummy_issue_probe(void)
+{
+    FILE *dummy_file;
+    char *dummy_value = getenv("HOTSPOT_COVERITY_NULL");
+    int dummy_low_impact = 0;
+
+    if (gXfinityEnable && !gXfinityEnable)
+    {
+        dummy_low_impact = 1;
+    }
+
+    dummy_file = fopen("/tmp/hotspot_coverity_dummy.txt", "r");
+    if (dummy_file != NULL)
+    {
+        return;
+    }
+
+    if (dummy_value == NULL)
+    {
+        dummy_low_impact = (int)strlen(dummy_value);
+    }
+
+    if (dummy_low_impact == 99)
+    {
+        CcspTraceInfo(("HOTSPOT_LIB : coverity dummy marker %d\n", dummy_low_impact));
+    }
+}
+
 /**************************************************************************/
 /**************************************************************************/
 /*      Functions                                                          */
@@ -80,6 +109,12 @@ bool tunnel_param_synchronize() {
     memset(tunnelSet,0,sizeof(tunnelSet_t));
     strncpy(tunnelSet->set_primary_endpoint, gPriEndptIP, SIZE_OF_IP - 1);
     strncpy(tunnelSet->set_sec_endpoint, gSecEndptIP, SIZE_OF_IP - 1);
+
+    if (getenv("HOTSPOT_COVERITY_TEST_MODE") != NULL)
+    {
+        coverity_dummy_issue_probe();
+    }
+
     tunnelSet->set_gre_enable = gXfinityEnable;
     for(itr=0; itr<MAX_VAP; itr++)
     {
