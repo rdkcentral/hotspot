@@ -203,6 +203,44 @@ static int hotspot_sysevent_disable_param(){
     return 0;
 }
 
+/**
+ * @brief Retrieve the current WAN interface name from sysevent
+ *
+ * @details Attempts to get the current WAN interface name from the sysevent
+ *          system using the "current_wan_ifname" key. If the sysevent call
+ *          fails or returns an empty value, defaults to "erouter0".
+ *
+ * @param[out] buf   Pointer to the buffer where the interface name will be stored
+ * @param[in]  len   Size of the output buffer in bytes
+ *
+ * @return Pointer to the buffer containing the WAN interface name on success,
+ *         NULL if the buffer pointer is NULL or size is 0
+ *
+ * @note The caller must provide a valid buffer with sufficient size (at least 64 bytes recommended)
+ * @note If sysevent_get fails, the function defaults to "erouter0"
+ *
+ * @see sysevent_get()
+ */
+static char *get_current_wan_ifname(char *buf, size_t len)
+{
+    CcspTraceInfo(("HOTSPOT_LIB : Entering %s\n", __FUNCTION__));
+
+    if (buf == NULL || len == 0)
+        return NULL;
+
+    if (0 == sysevent_get(gSyseventfd, gSysevent_token, "current_wan_ifname", buf, len) && '\0' != buf[0])
+    {
+        CcspTraceInfo(("HOTSPOT_LIB : Current WAN interface = %s\n", buf));
+        return buf;
+    }
+    else
+    {
+        CcspTraceWarning(("HOTSPOT_LIB : Failed to get current_wan_ifname from sysevent, using default erouter0\n"));
+        snprintf(buf, len, "erouter0");
+        return buf;
+    }
+}
+
 #if defined (_XER5_PRODUCT_REQ_)
 static int is_wan_started(){
   
@@ -243,17 +281,26 @@ static char *get_local_ipv4_address (char *buf, size_t len)
 static char *get_local_ipv6_address (char *buf, size_t len)
 {
     FILE *fp;
+    char wan_ifname[64] = {0};
+    char cmd[256] = {0};
 
     CcspTraceInfo(("HOTSPOT_LIB : Entering get_local_ipv6_address\n"));
 
     if (len == 0)
         return NULL;
 
+    if (get_current_wan_ifname(wan_ifname, sizeof(wan_ifname)) == NULL) {
+        CcspTraceError(("HOTSPOT_LIB : Failed to get WAN interface name\n"));
+        return NULL;
+    }
+
     /*
        Output may contain multiple addresses. We rely on the single fgets()
        call below to extract the first one.
     */
-    if ((fp = popen("ip addr show erouter0 | grep -w global | awk '/inet6/ {print $2}' | cut -d/ -f1", "r")) == NULL) {
+    snprintf(cmd, sizeof(cmd), "ip addr show %s | grep -w global | awk '/inet6/ {print $2}' | cut -d/ -f1", wan_ifname);
+    
+    if ((fp = popen(cmd, "r")) == NULL) {
         CcspTraceError(("HOTSPOT_LIB : Popen Error\n"));
         return NULL;
     }
@@ -348,6 +395,7 @@ void createAmenityBridges(void)
 int create_tunnel(char *gre_primary_endpoint){
 
    char   cmdBuf[1024];
+   char   wan_ifname[64] = {0};
    int    offset;
    int    retValue = 0;
    int    ip_version = -1;
@@ -359,6 +407,11 @@ int create_tunnel(char *gre_primary_endpoint){
                    CcspTraceError(("HOTSPOT_LIB : Sysevent failed in create_tunnel\n"));
                    return retValue;
              }
+         }
+
+         if (get_current_wan_ifname(wan_ifname, sizeof(wan_ifname)) == NULL) {
+             CcspTraceError(("HOTSPOT_LIB : Failed to get WAN interface name\n"));
+             return -1;
          }
 
          CcspTraceInfo(("HOTSPOT_LIB : Rename the default gretap0 interface present in yocto\n"));
@@ -387,20 +440,20 @@ int create_tunnel(char *gre_primary_endpoint){
             {
                 offset += snprintf(cmdBuf+offset,
                               sizeof(cmdBuf) - offset,
-                              "%s %s type gretap local %s remote %s dev erouter0  dsfield b0 nopmtudisc;",
-                              IP_ADD, GRE_IFNAME, local_Ipv4Address, gre_primary_endpoint);
+                              "%s %s type gretap local %s remote %s dev %s  dsfield b0 nopmtudisc;",
+                              IP_ADD, GRE_IFNAME, local_Ipv4Address, gre_primary_endpoint, wan_ifname);
             }
             else
             {
-                CcspTraceWarning(("HOTSPOT_LIB : Unable to create gretap0 interface since erouter0 doen't have global IPv4\n"));
+                CcspTraceWarning(("HOTSPOT_LIB : Unable to create gretap0 interface since %s doen't have global IPv4\n", wan_ifname));
                  return -1;
             }
 #else
 
              offset += snprintf(cmdBuf+offset,
                               sizeof(cmdBuf) - offset,
-                              "%s %s type gretap remote %s dev erouter0  dsfield b0 nopmtudisc;",
-                              IP_ADD, GRE_IFNAME, gre_primary_endpoint);
+                              "%s %s type gretap remote %s dev %s  dsfield b0 nopmtudisc;",
+                              IP_ADD, GRE_IFNAME, gre_primary_endpoint, wan_ifname);
 #endif
          }else if (ip_version == 6){
              char local_Ipv6Address[INET6_ADDRSTRLEN];
@@ -503,7 +556,16 @@ static void hotspot_async_reg()
 
 int hotspot_sysevent_enable_param()
 {
+    char wan_ifname[64] = {0};
+    char ipv6_rule[128] = {0};
+    char ipv4_rule[128] = {0};
+
     CcspTraceInfo(("HOTSPOT_LIB : Entering function %s to set sysevent parameters gSyseventfd = %d\n",__FUNCTION__, gSyseventfd));
+
+    if (get_current_wan_ifname(wan_ifname, sizeof(wan_ifname)) == NULL) {
+        CcspTraceError(("HOTSPOT_LIB : Failed to get WAN interface name\n"));
+        return -1;
+    }
 
     sysevent_set(gSyseventfd, gSysevent_token, "snooper-circuit-enable", "1", 0);
     sysevent_set(gSyseventfd, gSysevent_token, "snooper-remote-enable", "1", 0);
@@ -521,7 +583,8 @@ int hotspot_sysevent_enable_param()
     if((ipAddress_version(gPriEndptIP) == 6) || (ipAddress_version(gSecEndptIP) == 6))
     {
         CcspTraceInfo(("HOTSPOT_LIB : Add firewall rule to accept IPv6 GRE packets\n"));
-        sysevent_set(gSyseventfd, gSysevent_token, "gre_ipv6_fw_rule", " -A INPUT -i erouter0 -p gre -j ACCEPT", 0);
+        snprintf(ipv6_rule, sizeof(ipv6_rule), " -A INPUT -i %s -p gre -j ACCEPT", wan_ifname);
+        sysevent_set(gSyseventfd, gSysevent_token, "gre_ipv6_fw_rule", ipv6_rule, 0);
     }
     else
     {
@@ -530,7 +593,8 @@ int hotspot_sysevent_enable_param()
     if((ipAddress_version(gPriEndptIP) == 4) || (ipAddress_version(gSecEndptIP) == 4))
     {
         CcspTraceInfo(("HOTSPOT_LIB :  Add firewall rule to accept IPv4 GRE packets\n"));
-        sysevent_set(gSyseventfd, gSysevent_token, "gre_ipv4_fw_rule", " -A INPUT -i erouter0 -p gre -j ACCEPT", 0);
+        snprintf(ipv4_rule, sizeof(ipv4_rule), " -A INPUT -i %s -p gre -j ACCEPT", wan_ifname);
+        sysevent_set(gSyseventfd, gSysevent_token, "gre_ipv4_fw_rule", ipv4_rule, 0);
     }
     else
     {
@@ -560,7 +624,9 @@ int hotspot_sysevent_enable_param()
     sys_execute_cmd("/usr/bin/CcspHotspot -subsys eRT.");
 
     CcspTraceInfo(("HOTSPOT_LIB : Starting Hotspot arpd...\n"));
-    sys_execute_cmd("/usr/bin/hotspot_arpd -q 0");
+    char arpd_cmd[128] = {0};
+    snprintf(arpd_cmd, sizeof(arpd_cmd), "/usr/bin/hotspot_arpd -i %s -q 0", wan_ifname);
+    sys_execute_cmd(arpd_cmd);
 
     return 0;
 }
