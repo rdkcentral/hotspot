@@ -1117,18 +1117,6 @@ STATIC bool hotspot_check_wan_failover_status(char *val)
              CcspTraceError(("sysevent set %s failed on %s\n", kHotspotfd_tunnelEP, __FUNCTION__));
          }
      }
-     else
-     {
-         /* Tunnel and VLAN bridges were already fully created by wanfailover_handleTunnel(true).
-          * Reset gbFirstPrimarySignal and gTunnelIsUp so the keep-alive ping thread does not
-          * fire sysevent kHotspotfd_tunnelEP again, which would cause the GRE EP script to
-          * destroy and recreate gretap0, removing all VLAN sub-interfaces from their bridges. */
-         gTunnelIsUp = true;
-         pthread_mutex_lock(&keep_alive_mutex);
-         gbFirstPrimarySignal = false;
-         pthread_mutex_unlock(&keep_alive_mutex);
-         CcspTraceInfo(("Tunnel restored by wanfailover_handleTunnel, resetting firstPrimarySignal in %s\n", __FUNCTION__));
-     }
      return true;
 }
 #endif
