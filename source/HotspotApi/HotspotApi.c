@@ -801,7 +801,7 @@ int getHotspotVapIndex(char *vapName) {
      else if (strcmp(vapName, VAP_NAME_9)==0){
           return VLAN_INDEX_3;
      }
-#if defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+#if (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
      else if (strcmp(vapName, VAP_NAME_11)==0){
           return VLAN_INDEX_4;
      }
@@ -966,7 +966,7 @@ int compareTunnelConfig(){
 
     if(oldTunnelData.isFirst == true){
        CcspTraceInfo(("HOTSPOT_LIB : All the parameters are considered as changed, as this the first time.\n"));
-#if defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+#if (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
        return_status = PRIMARY_EP_CHANGED | SECONDARY_EP_CHANGED | VLAN_CHANGE_1 | VLAN_CHANGE_2 | VLAN_CHANGE_3 | VLAN_CHANGE_4 | VLAN_CHANGE_5 | VLAN_CHANGE_6;
        return return_status;
 #else
@@ -1409,7 +1409,7 @@ int confirmVap(){
          PsmSet(PSM_VLAN_SECURE_2G, Buf);
          snprintf(Buf, sizeof(Buf), "%d", vlanIdList[3]);
          PsmSet(PSM_VLAN_SECURE_5G, Buf);
-#if defined (_XB8_PRODUCT_REQ_) && defined(RDK_ONEWIFI)
+#if (defined (_XB8_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)) && defined(RDK_ONEWIFI)
          snprintf(Buf, sizeof(Buf), "%d", vlanIdList[4]);
          PsmSet(PSM_VLAN_OPEN_6G, Buf);
          snprintf(Buf, sizeof(Buf), "%d", vlanIdList[5]);
