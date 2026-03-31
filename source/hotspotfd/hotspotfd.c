@@ -1060,7 +1060,6 @@ STATIC bool hotspot_isRemoteWan(char *wan_interface)
  
      if ( (strcmp(wan_interface, psm_val) == 0)){
          wanFailover = true;
-#if !defined(RDK_ONEWIFI)
         if(TRUE == get_validate_ssid())
         {
             CcspTraceInfo(("SSID values are updated successfully before setting tunnel status down\n"));
@@ -1069,13 +1068,11 @@ STATIC bool hotspot_isRemoteWan(char *wan_interface)
         {
             CcspTraceInfo(("SSID values not are updated successfully before setting tunnel status down\n"));
         }
-#endif
          notify_tunnel_status("Down");
          return true;
      }
      else{
          wanFailover = false;
-#if !defined(RDK_ONEWIFI)
         if(TRUE == set_validatessid())
         {
             CcspTraceInfo(("SSID's updated before creating tunnels before setting tunnel status up. \n"));
@@ -1084,7 +1081,6 @@ STATIC bool hotspot_isRemoteWan(char *wan_interface)
         {
             CcspTraceInfo(("SSID's are not updated before creating tunnels before setting tunnel status up. \n"));
         }
-#endif
          notify_tunnel_status("Up");
          return false;
      }

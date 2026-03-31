@@ -481,13 +481,6 @@ int create_tunnel(char *gre_primary_endpoint){
 
          CcspTraceInfo(("HOTSPOT_LIB : ROLLBACK Buffer 1 gre add = %s %d\n", cmdBuf, offset));
          sys_execute_cmd(cmdBuf);
-#if defined (AMENITIES_NETWORK_ENABLED)
-     if (access("/tmp/.hotspot_blob_executed", F_OK) == 0)
-     {
-         CcspTraceInfo(("HOTSPOT_LIB : Creating Amenity Bridges\n"));
-         createAmenityBridges();
-     }
-#endif /*AMENITIES_NETWORK_ENABLED*/
 	 return 0;
 }
 
@@ -1492,6 +1485,11 @@ int confirmVap(){
          CcspTraceInfo(("[%s] [%d]Restarting EAPD.. Buf : [%s]\n", __func__, __LINE__, "killall -q -9 eapd 2>/dev/null"));
          sys_execute_cmd("eapd");
 #endif
+
+#if defined (AMENITIES_NETWORK_ENABLED)
+         CcspTraceInfo(("HOTSPOT_LIB : Creating Amenity Bridges\n"));
+         createAmenityBridges();
+#endif /*AMENITIES_NETWORK_ENABLED*/
      }
 
      CcspTraceInfo(("HOTSPOT_LIB : Removing /tmp/.hotspot_blob_inprogress\n"));
