@@ -55,6 +55,7 @@
 #include <telemetry_busmessage_sender.h>
 #include "safec_lib_common.h"
 #include "libHotspot.h"
+#include <rbus.h>
 
 #define mylist_safe(p, q, h) \
          if ((h)->n == NULL ) { \
