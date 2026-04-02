@@ -248,4 +248,7 @@ void updateRssiForClient(char* pRemote_id, int rssi,int vap_index);
 void snoop_RemoveClientListEntry(char *pRemote_id);
 uint16_t snoop_ipChecksum(struct iphdr * header);
 void snoop_log(void);
+int publish_to_onewifi(char *cmdStr);
+dhcp_client_state_t* get_client_state(const char *mac);
+void remove_client_state(const char *mac);
 #endif
