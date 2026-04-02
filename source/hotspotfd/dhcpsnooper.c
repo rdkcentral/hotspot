@@ -55,9 +55,6 @@
 #include <telemetry_busmessage_sender.h>
 #include "safec_lib_common.h"
 #include "libHotspot.h"
-#include <time.h>
-#include <stdbool.h>
-
 
 #define mylist_safe(p, q, h) \
          if ((h)->n == NULL ) { \
@@ -261,18 +258,20 @@ static void constructCommand(char *macaddr, char *cmd)
     bool already_in_list = false;
     char macaddr_with_index[64] = {0};
     pthread_mutex_lock(&global_stats_mutex);
-    mylist_safe(pos, q, &gSnoop_ClientList.list) {
+    mylist_safe(pos, q, &gSnoop_ClientList.list)
+    {
 
-         pNewClient= mylist_entry(pos, snooper_priv_client_list, list);
-         if(!strcasecmp(pNewClient->client.remote_id, macaddr)) {
-             already_in_list = true;
-             break;
-         }
+        pNewClient= mylist_entry(pos, snooper_priv_client_list, list);
+        if(!strcasecmp(pNewClient->client.remote_id, macaddr))
+        {
+            already_in_list = true;
+            break;
+        }
     }
     if(already_in_list)
     {
         msg_debug("Client:%s is present in list\n", macaddr);
-        sprintf(macaddr_with_index, "%s_%d", macaddr, pNewClient->client.vapIndex);
+        snprintf(macaddr_with_index, sizeof(macaddr_with_index), "%s_%d", macaddr, pNewClient->client.vapIndex);
         macaddr_with_index[sizeof(macaddr_with_index) - 1] = '\0';
     }
     strncpy(cmd, macaddr_with_index, sizeof(macaddr_with_index) - 1);

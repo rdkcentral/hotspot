@@ -2104,6 +2104,7 @@ void hotspot_start()
 		CcspTraceError(("Could not setup shared memory hotspotfd bring up aborted\n"));
         exit(1);
     }
+    hotspotDisassocClientRbusInit();
     pthread_create(&dhcp_snooper_tid, NULL, dhcp_snooper_init, NULL);
 
     if (signal(SIGTERM, hotspotfd_SignalHandler) == SIG_ERR)
@@ -2119,7 +2120,6 @@ void hotspot_start()
 
     v_secure_system("touch /tmp/hotspotfd_up");
     hotspotfd_log();
-    hotspotDisassocClientRbusInit();
 
     rbusDataElement_t dataElements[1] = {
         {"Device.X_COMCAST-COM_GRE.Tunnel.1.TunnelStatus", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {TunnelStatus_GetStringHandler, TunnelStatus_SetStringHandler, NULL, NULL, TunnelStatus_EventSubHandler, NULL}}
