@@ -128,3 +128,4 @@ extern char old_wan_ipv4[kMax_IPAddressLength];
 extern char old_wan_ipv6[kMax_IPAddressLength];
 extern int gSnoopNumberOfClients;
 extern char ssid_reset_mask;
+extern client_node_t *client_list;
