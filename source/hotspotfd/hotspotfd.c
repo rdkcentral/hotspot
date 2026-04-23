@@ -191,6 +191,11 @@ STATIC pthread_t rbus_tid;
 #endif
 rbusHandle_t handle;
 
+#define HOTSPOT_NUM_OF_RBUS_PARAMS  sizeof(hotspotRbusDataElements)/sizeof(hotspotRbusDataElements[0])
+#define HIPADDR "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient"
+static rbusError_t rbus_disassocEventSubHandler(rbusHandle_t handle, rbusEventSubAction_t action, const char* eventName, rbusFilter_t filter, int32_t interval, bool* autoPublish);
+rbusHandle_t disassoc_rbus_handle;
+
 STATIC pthread_t dhcp_snooper_tid;
 
 char TunnelStatus[8] = {0};
@@ -279,6 +284,31 @@ Hotspotfd_MsgItem hotspotfdMsgArr[] = {
     {"test_current_wan_ifname",                       TEST_CURRENT_WAN_IFNAME}
 #endif
     };
+  
+    rbusDataElement_t hotspotRbusDataElements[] = 
+    {	
+        /* RBUS_BOOLEAN */
+        {HIPADDR, RBUS_ELEMENT_TYPE_EVENT, {NULL, NULL, NULL, NULL, rbus_disassocEventSubHandler, NULL}}
+    };
+
+/**
+ * @brief Event subscription handler for RejectAssociatedClient.
+ * Called by RBus when a consumer (OneWifi) subscribes or unsubscribes.
+ */
+static rbusError_t rbus_disassocEventSubHandler(rbusHandle_t handle,
+    rbusEventSubAction_t action, const char* eventName,
+    rbusFilter_t filter, int32_t interval, bool* autoPublish)
+{
+    UNREFERENCED_PARAMETER(handle);
+    UNREFERENCED_PARAMETER(filter);
+    UNREFERENCED_PARAMETER(interval);
+
+    *autoPublish = false;
+    CcspTraceInfo(("%s: %s event %s\n", __FUNCTION__,
+        action == RBUS_EVENT_ACTION_SUBSCRIBE ? "SUBSCRIBE" : "UNSUBSCRIBE",
+        eventName));
+    return RBUS_ERROR_SUCCESS;
+}
 
 HotspotfdType Get_HotspotfdType(char * name)
 {
@@ -2005,6 +2035,35 @@ void  *handle_rbusSubscribe() {
 }
 #endif
 
+//Initialize rbus for Dissociation of private client parameter
+rbusError_t hotspotDisassocClientRbusInit()
+{
+    int rc = RBUS_ERROR_SUCCESS;
+    if(RBUS_ENABLED != rbus_checkStatus())
+    {
+        CcspTraceWarning(("%s: RBUS not available. Events are not supported\n", __FUNCTION__));
+        return RBUS_ERROR_BUS_ERROR;
+    }
+    
+    rc = rbus_open(&disassoc_rbus_handle, "HotSpotPrivateClientDisable");
+    if (rc != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceWarning(("CMAgent rbus initialization failed\n"));
+        rc = RBUS_ERROR_NOT_INITIALIZED;
+        return rc;
+    }
+    
+    // Register data elements
+    rc = rbus_regDataElements(disassoc_rbus_handle, HOTSPOT_NUM_OF_RBUS_PARAMS, hotspotRbusDataElements);
+    if (rc != RBUS_ERROR_SUCCESS)
+    {
+        CcspTraceError(("rbus register data elements failed\n"));
+        rc = rbus_close(disassoc_rbus_handle);
+        return rc;
+    }
+    return rc;
+}
+
 void hotspot_start()
 {
     unsigned int keepAliveThreshold = 0;
@@ -2045,6 +2104,7 @@ void hotspot_start()
 		CcspTraceError(("Could not setup shared memory hotspotfd bring up aborted\n"));
         exit(1);
     }
+    hotspotDisassocClientRbusInit();
     pthread_create(&dhcp_snooper_tid, NULL, dhcp_snooper_init, NULL);
 
     if (signal(SIGTERM, hotspotfd_SignalHandler) == SIG_ERR)
