@@ -152,8 +152,10 @@ The CCSP Hotspot component requires a fully functional RDK-B middleware environm
 | `--enable-unitTestDockerSupport`        | N/A                        | `UNIT_TEST_DOCKER_SUPPORT`   | Enable Docker container support for unit testing; compiles test harness (`HotspotApiTest`, `HotspotFdTest`) with mocking frameworks for isolated component testing  | Disabled |
 | `--enable-wanfailover`                  | `WanFailOverSupportEnable` | `WAN_FAILOVER_SUPPORTED`     | Enable WAN failover support for multi-WAN scenarios; subscribes to WAN Manager interface change events and rebinds GRE tunnel to active WAN interface automatically | Disabled |
 | `--enable-core_net_lib_feature_support` | `core-net-lib`             | `CORE_NET_LIB`               | Enable advanced core networking library for enhanced network operations; links against libnet for low-level packet construction and network interface manipulation  | Disabled |
-| N/A                                     | `OneWifi`                  | `RDK_ONEWIFI`                | Enable OneWifi unified WiFi stack integration; increases MAX_VAP from 4 to 6 to support 6GHz band hotspot SSIDs (hotspot_open_6g, hotspot_secure_6g)                | Disabled |
+| N/A                                     | `OneWifi`                  | `RDK_ONEWIFI`                | Enable OneWifi unified WiFi stack integration; when combined with `_XB8_PRODUCT_REQ_` or `_SCXF11BFL_PRODUCT_REQ_`, increases MAX_VAP (in `libHotspotApi.h`) and SSIDVAL (in `hotspotfd.c`) from 4 to 6 to support 6GHz band hotspot SSIDs (hotspot_open_6g, hotspot_secure_6g); `RDK_ONEWIFI` alone does not change MAX_VAP or SSIDVAL if neither product flag is defined | Disabled |
 | N/A                                     | N/A                        | `FEATURE_SUPPORT_MAPT_NAT46` | Enable MAP-T (Mapping of Address and Port with Translation) NAT46 support in ARP daemon for IPv4/IPv6 translation in hotspot traffic                                | Disabled |
+| N/A                                     | N/A                        | `_CBR_PRODUCT_REQ_`          | Cable Box Router product flag; sets SSIDVAL=5 in `hotspotfd.c` and MAX_VAP=5 in `libHotspotApi.h`, adding support for a fifth hotspot VAP (VAP_NAME_10) for the public SSID | N/A |
+| N/A                                     | N/A                        | `_BWG_PRODUCT_REQ_`          | Business Wireless Gateway product flag; sets SSIDVAL=5 in `hotspotfd.c` (evaluated together with `_CBR_PRODUCT_REQ_`); does not affect MAX_VAP in `libHotspotApi.h` | N/A |
 | N/A                                     | N/A                        | `AMENITIES_NETWORK_ENABLED`  | Enable amenities network support for hospitality/MDU deployments; creates separate bridge interfaces for amenities SSIDs with dedicated DHCP snooping queues        | Disabled |
 
 **Configuration Examples:**
@@ -176,7 +178,7 @@ EXTRA_OECONF_append_pn-ccsp-hotspot = " --enable-unitTestDockerSupport"
 
 **Flag Impact on Code Behavior:**
 
-- **RDK_ONEWIFI**: Changes `MAX_VAP` definition from 4 to 6, adds support for `VAP_NAME_11` (hotspot_open_6g) and `VAP_NAME_12` (hotspot_secure_6g), includes additional PSM VLAN keys for 6GHz bands
+- **RDK_ONEWIFI**: When combined with `_XB8_PRODUCT_REQ_` or `_SCXF11BFL_PRODUCT_REQ_`, changes MAX_VAP in `libHotspotApi.h` and SSIDVAL in `hotspotfd.c` from 4 to 6, adds support for `VAP_NAME_11` (hotspot_open_6g) and `VAP_NAME_12` (hotspot_secure_6g), and includes additional VLAN-to-bridge entries in `HotspotLib.c`; `RDK_ONEWIFI` alone does not change MAX_VAP or SSIDVAL if neither `_XB8_PRODUCT_REQ_` nor `_SCXF11BFL_PRODUCT_REQ_` is defined
 - **WAN_FAILOVER_SUPPORTED**: Enables R-BUS subscription thread for `Device.X_RDK_WanManager.CurrentActiveInterface` events, adds WAN interface rebinding logic, includes failover JSON configuration handling
 - **CORE_NET_LIB**: Uses `libnet` library calls for network operations instead of system() calls, provides more efficient packet construction and interface manipulation
 - **AMENITIES_NETWORK_ENABLED**: Expands DHCP snooper to handle additional netfilter queues for amenities networks, creates separate bridge interfaces and VLAN configurations for hospitality SSIDs
@@ -261,8 +263,8 @@ The CCSP Hotspot component uses a multi-threaded architecture designed to handle
 | **IPv6 SLAAC Thread**           | `checkglobalipv6()`            | Performs IPv6 Stateless Address Autoconfiguration (SLAAC) on GRE tunnel interface during connectivity tests. Monitors for global IPv6 address acquisition with 10-second timeout, verifies Duplicate Address Detection (DAD) completion. Used in XfinityTestAgent tunnel validation.        | `tunnelcheck.c`<br/>`pthread_create(&slaacthread, NULL, checkglobalipv6, NULL)`                                             | Thread is joined after completion (`pthread_join`), single-shot operation with timeout mechanism           |
 
 - **Synchronization Mechanisms**:
-  - **Mutex Protection**: `pthread_mutex_t global_stats_mutex` in DHCP snooper for thread-safe client list access
-  - **Signal Handlers**: `SIGTERM`, `SIGINT`, `SIGKILL` handlers for graceful shutdown with atomic flag checks
+  - **Mutex Protection**: `pthread_mutex_t global_stats_mutex` in `dhcpsnooper.c` for thread-safe client list access; `pthread_mutex_t keep_alive_mutex` in `hotspotfd.c` for protecting keep-alive state shared between the main keep-alive loop and the sysevent handler thread
+  - **Signal Handlers**: `SIGTERM` and `SIGINT` handlers in `hotspotfd.c` for graceful shutdown; `signal(SIGKILL, ...)` is attempted but always returns `SIG_ERR` — SIGKILL cannot be caught, blocked, or ignored per POSIX, so it has no effect
   - **Lock-free Statistics**: Keep-alive statistics in shared memory use single-writer (daemon), multiple-reader pattern without locks
   - **Event-driven Coordination**: Sysevent async notifications and R-BUS event subscriptions eliminate polling overhead
 
@@ -308,9 +310,9 @@ sequenceDiagram
     DM->>RBus: Register Parameter Callbacks
     RBus-->>DM: DM Registration Complete
 
-    SSP->>TM: ssp_engage() → hotspot_start()
+    SSP->>SSP: ssp_engage() - Register data model with Component Registry
+    SSP->>TM: hotspot_start() (called directly from main() after ssp_engage() returns)
     Note over TM: State: Initializing Tunnel Manager
-
     TM->>PSM: Read Configuration
     PSM-->>TM: Config: Enable, Endpoints, VLANs
 
@@ -429,19 +431,20 @@ sequenceDiagram
     Cre-->>Main: Component Handle
 
     Main->>EngS: Engage Component
-    EngS->>HS: hotspot_start()
+    EngS->>EngS: RegisterCcspDataModel2()<br/>Register data model with Component Registry
+    EngS-->>Main: ANSC_STATUS_SUCCESS
+
+    Main->>HS: hotspot_start() (called directly from main())
     Note over HS: Initialize Hotspot Subsystem
 
-    HS->>SysEvt: gre_sysevent_syscfg_init()<br/>Initialize sysevent/syscfg
+    HS->>SysEvt: sysevent_open()<br/>Initialize sysevent fd and token
     SysEvt-->>HS: Sysevent FD & Token
 
-    HS->>PSM: PsmGet("dmsb.hotspot.enable")
-    PSM-->>HS: Enable Status
+    HS->>SysEvt: hotspotfd_getStartupParameters()<br/>Read all config params via sysevent<br/>(endpoints, keep-alive interval/threshold, snooper settings)
+    Note over HS: Parameters are pre-loaded into sysevent<br/>by HotspotApi library (from PSM) before hotspotfd starts
+    SysEvt-->>HS: Startup Parameters
 
-    alt Hotspot Enabled
-        HS->>PSM: Read tunnel configuration<br/>(endpoints, VLANs, DSCP)
-        PSM-->>HS: Configuration Data
-
+    alt Hotspot Enabled (primary endpoint valid in sysevent)
         HS->>HS: hotspot_sysevent_enable_param()<br/>Validate and cache parameters
 
         HS->>HS: create_tunnel(primary_endpoint)
@@ -453,8 +456,7 @@ sequenceDiagram
         HS->>HS: Start keep-alive monitoring loop
     end
 
-    HS-->>EngS: Initialization Complete
-    EngS-->>Main: ANSC_STATUS_SUCCESS
+    HS-->>Main: Initialization Complete
 
     Main->>Main: Enter R-BUS event loop<br/>while (g_bActive)
 ```
@@ -557,9 +559,9 @@ The CCSP Hotspot component is organized into several logical modules, each respo
 | **SSP Framework**       | Provides the CCSP Single Service Process framework implementation, handling component registration, R-BUS engagement, lifecycle management (initialize/engage/cancel), and signal handling. This module bootstraps the entire component.                                                                                                                                                                 | `ssp_main.c`, `ssp_action.c`, `ssp_messagebus_interface.c`, `ssp_global.h`, `ssp_internal.h` |
 | **Data Model Handler**  | Implements the TR-181 data model interface for `Device.X_COMCAST-COM_GRE.Hotspot` namespace. Handles parameter get/set operations, validates input, and bridges R-BUS/D-Bus calls to the tunnel manager logic. Exposes the `ClientChange` parameter for DHCP snooper integration.                                                                                                                        | `cosa_hotspot_dml.c`, `cosa_hotspot_dml.h`, `plugin_main.c`                                  |
 | **Tunnel Manager**      | Core tunnel lifecycle manager responsible for GRE tunnel creation, configuration, and destruction. Maintains tunnel state, coordinates with network stack for interface operations, manages VLAN bridge configurations, and handles sysevent-based coordination with other system components.                                                                                                            | `hotspotfd.c`, `hotspotfd.h`                                                                 |
-| **Keep-Alive Engine**   | Implements ICMP-based endpoint health monitoring with configurable intervals, thresholds, and policies. Manages the primary/secondary endpoint failover state machine, maintains keep-alive statistics in shared memory, and publishes endpoint change events via sysevent.                                                                                                                              | `hotspotfd.c` (hotspotfd_isPrimaryAlive, hotspotfd_isSecondaryAlive, keep-alive loop)        |
-| **Hotspot API Library** | Public library providing programmatic API for hotspot configuration and control. Used by WebConfig framework for RFC-based provisioning, implements configuration validation, comparison, and transactional application with rollback support.                                                                                                                                                           | `HotspotApi.c`, `libHotspotApi.h`                                                            |
-| **WebConfig Handler**   | Processes JSON-based WebConfig documents (subdoc: "hotspot"), performs schema validation using Jansson library, manages configuration persistence to PSM and filesystem, and coordinates with tunnel manager for atomic configuration updates.                                                                                                                                                           | `HotspotJansson.c`, `HotspotLib.c`                                                           |
+| **Keep-Alive Engine**   | Implements ICMP-based endpoint health monitoring with configurable intervals, thresholds, and policies. Manages the primary/secondary endpoint failover state machine, maintains keep-alive statistics in shared memory, and publishes endpoint change events via sysevent.                                                                                                                              | `hotspotfd.c` (boolean state variables `gPrimaryIsAlive`, `gSecondaryIsAlive`; keep-alive loop within `hotspot_start()`)        |
+| **Hotspot API Library** | Public library providing programmatic API for hotspot configuration and control. Used by WebConfig framework for RFC-based provisioning, implements configuration validation, comparison, and transactional application with rollback support.                                                                                                                                                           | `HotspotApi.c`, `libHotspotApi.h`, `HotspotLib.c`, `libHotspot.h`                                                            |
+| **WebConfig Handler**   | Processes JSON-based WebConfig documents (subdoc: "hotspot"), performs schema validation using Jansson library, manages configuration persistence to PSM and filesystem, and coordinates with tunnel manager for atomic configuration updates.                                                                                                                                                           | `HotspotJansson.c`, `HotspotApi.c`                                                           |
 | **DHCP Snooper**        | Monitors DHCP traffic on hotspot SSIDs to track client connections, parses DHCP ACK packets to extract client MAC addresses and lease information, maintains a dynamic client list in memory, supports DHCP Option 82 (Circuit ID / Remote ID) for carrier-grade NAT deployments, and publishes client presence events via R-BUS. Receives DHCP packets from external sources (WiFi manager forwarding). | `dhcpsnooper.c`, `dhcpsnooper.h`, `dhcp.h` (DHCP packet structures)                          |
 | **ARP/NDP Daemon**      | Standalone process that handles ARP (IPv4) and Neighbor Discovery Protocol (IPv6) packet processing using netfilter queue mechanism. Receives packets from iptables/ip6tables NFQUEUE targets, validates source addresses, generates ARP replies or NDP neighbor advertisements, and supports MAPT/NAT46 address translation for dual-stack environments.                                                | `hotspot_arpd.c`                                                                             |
 | **Tunnel Test Agent**   | Diagnostic utility for validating tunnel connectivity, performs IPv6 SLAAC on GRE interface, verifies global IPv6 address acquisition, tests reachability to remote endpoints, and generates connectivity reports. Can be executed standalone or invoked by monitoring systems.                                                                                                                          | `tunnelcheck.c`                                                                              |
@@ -580,8 +582,8 @@ The following table consolidates all component interactions, their purposes, and
 | PAM (CcspPandM)                 | Monitor WAN interface status to pause/resume keep-alive checks during WAN outages, query current WAN IP addresses for local endpoint validation                                         | Sysevent subscription: `wan-status`, `current_wan_ipaddr`, `wan6_ipaddr`, Optional: `current_wan_ifname` (for WAN failover)                                                                                                                                            |
 | PSM (CcspPsm)                   | Persist tunnel configuration (endpoints, VLANs, enable flags) across reboots, read configuration during initialization                                                                  | PSM API calls: `PsmGet()`, `PsmSet()` - Namespace: `dmsb.hotspot.enable`, `dmsb.hotspot.tunnel.1.PrimaryRemoteEndpoint`, `dmsb.hotspot.tunnel.1.SecondaryRemoteEndpoint`, `dmsb.hotspot.tunnel.1.interface.{i}.VLANID`, `dmsb.l2net.{i}.Vid` (per-SSID VLAN PSM keys)  |
 | CR (Component Registry)         | Register component at startup for discovery by other CCSP components and PAM                                                                                                            | D-Bus/R-BUS registration: Component name `com.cisco.spvtg.ccsp.hotspot`, Namespace: `Device.X_COMCAST-COM_GRE.Hotspot`, Path: `/com/cisco/spvtg/ccsp/hotspot`                                                                                                          |
-| Telemetry (T2)                  | Report operational metrics and events for monitoring and analytics (tunnel status, endpoint switches, keep-alive failures, client counts)                                               | T2 API: `t2_event_s()`, `t2_event_d()` - Markers: `HOTSPOT_TUNNEL_STATUS`, `HOTSPOT_ENDPOINT_SWITCH`, `HOTSPOT_CLIENT_COUNT`, Log parsing for RDK Telemetry 2.0                                                                                                        |
-| WebPA / WebConfig Framework     | Receive RFC-based configuration updates for tunnel parameters via cloud-managed deployment model                                                                                        | WebConfig callback registration: `register_sub_doc_handler("hotspot", setHotspot, deleteHotspot)`, Function: `setHotspot(void* network)` receives `tunneldoc_t*` structure                                                                                             |
+| Telemetry (T2)                  | Report operational metrics and events for monitoring and analytics (tunnel status, endpoint switches, keep-alive failures, client counts)                                               | T2 API: `t2_event_s()`, `t2_event_d()` - T2 markers: `SYS_INFO_Create_GRE_Tunnel`, `XWIFI_Active_Tunnel` (`hotspotfd.c`); `WIFI_INFO_Hotspot_client_connected`, `WIFI_INFO_Hotspot_client_disconnected` (`cosa_hotspot_dml.c`); `WIFI_INFO_ClientTransitionToXfininityWifi`, `SYS_INFO_Hotspot_MaxClients` (`dhcpsnooper.c`); `XWIFI_VLANID_6_split`, `XWIFI_VLANID_10_split`, `XWIFI_VLANID_19_split`, `XWIFI_VLANID_21_split` (`HotspotApi.c`) |
+| WebPA / WebConfig Framework     | Receive RFC-based configuration updates for tunnel parameters via cloud-managed deployment model                                                                                        | WebConfig callbacks: `setHotspot(void* const network)` processes `tunneldoc_t*` structure; `deleteHotspot()` triggers rollback on failure. Both declared in `libHotspotApi.h` and implemented in `HotspotApi.c`. Registration with the WebConfig framework is handled by the webconfig-framework library, which invokes these callbacks when a hotspot subdoc is received. |
 | **System & HAL Layers**         |
 | Linux Network Stack             | Create and configure GRE tunnel interface (gretap0), manage VLAN tagging on bridge interfaces, send/receive ICMP packets for keep-alive, configure bridge memberships for hotspot SSIDs | System calls: `system("ip link add gretap0 type gretap remote <endpoint>")`, `system("ip link set gretap0 up")`, `system("bridge vlan add vid <vlan> dev <interface>")`, Raw socket APIs: `socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)`, `sendto()`, `recvfrom()` for ICMP |
 | Sysevent Framework              | Subscribe to system-wide events (WAN status, interface changes), publish hotspot-specific events (tunnel endpoint changes) for coordination with firewall and routing                   | Sysevent API: `sysevent_open()`, `sysevent_get()`, `sysevent_set()`, `sysevent_set_options()`, Events: Get: `wan-status`, `current_wan_ipaddr`, Set: `hotspotfd-tunnelEP`, `hotspotfd-enable`, `hotspotfd-keep-alive`                                                  |
@@ -857,8 +859,8 @@ The CCSP Hotspot component does not directly integrate with traditional RDK-B HA
 
 | System API / Interface                                            | Purpose                                                                                                                                                             | Implementation File                                                                         |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `system("ip link add/set/del")`                                   | Create, configure, and delete GRE tunnel interfaces (gretap0); set tunnel parameters like local/remote endpoints, MTU, and operational state                        | `HotspotLib.c`, `hotspotfd.c` (create_tunnel(), recreate_tunnel())                          |
-| `system("bridge vlan add/del")`                                   | Manage VLAN tagging on bridge interfaces for hotspot SSIDs; add/remove VLAN IDs on bridge ports                                                                     | `HotspotLib.c` (configHotspotBridgeVlan(), update_bridge_config())                          |
+| `system("ip link add/set/del")`                                   | Create, configure, and delete GRE tunnel interfaces (gretap0); set tunnel parameters like local/remote endpoints, MTU, and operational state                        | `HotspotApi.c` (`create_tunnel()`, `recreate_tunnel()`)                                     |
+| `system("bridge vlan add/del")`                                   | Manage VLAN tagging on bridge interfaces for hotspot SSIDs; add/remove VLAN IDs on bridge ports                                                                     | `HotspotApi.c` (`configHotspotBridgeVlan()`)                                                |
 | `socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)`                         | Create raw sockets for sending and receiving ICMP Echo Request/Reply packets for keep-alive health monitoring                                                       | `hotspotfd.c` (keep-alive loop)                                                             |
 | `sendto() / recvfrom()`                                           | Send ICMP keep-alive packets to remote endpoints and receive replies; implements timeout-based failure detection                                                    | `hotspotfd.c` (keep-alive monitoring functions)                                             |
 | `shmget() / shmat() / shmdt()`                                    | Create and access System V shared memory segment for keep-alive statistics; allows inter-process communication without message passing overhead                     | `hotspotfd.c` (hotspotfd_setupSharedMemory(), kKeepAlive_Statistics)                        |
@@ -926,13 +928,12 @@ The CCSP Hotspot component implements several critical algorithms and mechanisms
   - **Verbosity Levels**: ERROR, WARNING, INFO, DEBUG, TRACE - controlled via `/etc/debug.ini` and runtime DM parameters
   - **State Transition Logging**: Each state machine transition logs the previous state, trigger event, and new state with timestamps
   - **Keep-Alive Diagnostics**: Logs include ICMP sequence numbers, checksums, round-trip times, failure counts, and active endpoint
-  - **Telemetry Integration**: Critical events are published via T2 markers: `HOTSPOT_TUNNEL_STATUS`, `HOTSPOT_EP_SWITCH_PRIMARY`, `HOTSPOT_EP_SWITCH_SECONDARY`, `HOTSPOT_CLIENT_CONNECT`, `HOTSPOT_CLIENT_DISCONNECT`
+  - **Telemetry Integration**: Critical events are published via T2 markers: `SYS_INFO_Create_GRE_Tunnel` and `XWIFI_Active_Tunnel` (`hotspotfd.c`); `WIFI_INFO_Hotspot_client_connected` and `WIFI_INFO_Hotspot_client_disconnected` (`cosa_hotspot_dml.c`); `WIFI_INFO_ClientTransitionToXfininityWifi` and `SYS_INFO_Hotspot_MaxClients` (`dhcpsnooper.c`); `XWIFI_VLANID_6_split`, `XWIFI_VLANID_10_split`, `XWIFI_VLANID_19_split`, `XWIFI_VLANID_21_split` (`HotspotApi.c`)
   - **Debug Hooks**:
     - Shared memory statistics can be dumped via `cat /proc/<pid>/maps` and `ipcs -m`
     - Sysevent values can be inspected: `sysevent get hotspotfd-tunnelEP`
     - DHCP client list can be queried via R-BUS (future enhancement)
-    - Verbose ICMP packet logging can be enabled at compile time (`VERBOSE_KEEPALIVE_LOGGING`)
-
+    - ICMP keep-alive logging verbosity is controlled at runtime via the `gKeepAliveLogEnable` boolean flag, toggled by setting the `hotspotfd-log-enable` sysevent variable (e.g., `sysevent set hotspotfd-log-enable 1`)
 ### Key Configuration Files
 
 | Configuration File                            | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Override Mechanisms                                                                                                                          |
