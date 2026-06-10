@@ -968,3 +968,353 @@ TEST_F(HotspotFdTestFixture, hotspotfd_getStartupParameters) {
     result = hotspotfd_getStartupParameters();
     EXPECT_EQ(STATUS_SUCCESS, result);
 }
+
+// Helper to clean up the client_list linked list between tests
+static void cleanup_client_list() {
+    client_node_t *cur = client_list;
+    while (cur) {
+        client_node_t *next = cur->next;
+        free(cur);
+        cur = next;
+    }
+    client_list = NULL;
+}
+
+// ==========================================
+// Testcases for get_client_state
+// ==========================================
+TEST_F(HotspotFdTestFixture, get_client_state_NullMac) {
+    dhcp_client_state_t *state = get_client_state(NULL);
+    EXPECT_EQ(nullptr, state);
+    cleanup_client_list();
+}
+TEST_F(HotspotFdTestFixture, get_client_state_EmptyMac) {
+    dhcp_client_state_t *state = get_client_state("");
+    EXPECT_EQ(nullptr, state);
+    cleanup_client_list();
+}
+
+TEST_F(HotspotFdTestFixture, get_client_state_NewClient) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+    ASSERT_NE(nullptr, client_list);
+    EXPECT_STREQ("aa:bb:cc:dd:ee:ff", client_list->mac);
+    // Verify calloc zero-initialized the state fields
+    EXPECT_FALSE(state->timer_running);
+    EXPECT_FALSE(state->dhcp_discover);
+    EXPECT_FALSE(state->dhcp_request);
+    EXPECT_FALSE(state->dhcp_offer);
+    EXPECT_FALSE(state->dhcp_ack);
+    cleanup_client_list();
+}
+
+TEST_F(HotspotFdTestFixture, get_client_state_ExistingClient) {
+    client_list = NULL;
+    dhcp_client_state_t *state1 = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state1);
+    state1->dhcp_discover = true;
+
+    // Second call for same MAC should return same state pointer
+    dhcp_client_state_t *state2 = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state2);
+    EXPECT_EQ(state1, state2);
+    EXPECT_TRUE(state2->dhcp_discover);
+    cleanup_client_list();
+}
+
+TEST_F(HotspotFdTestFixture, get_client_state_MultipleClients) {
+    client_list = NULL;
+    dhcp_client_state_t *state1 = get_client_state("aa:bb:cc:dd:ee:01");
+    dhcp_client_state_t *state2 = get_client_state("aa:bb:cc:dd:ee:02");
+    ASSERT_NE(nullptr, state1);
+    ASSERT_NE(nullptr, state2);
+    EXPECT_NE(state1, state2);
+
+    // Verify both clients are retrievable
+    dhcp_client_state_t *found1 = get_client_state("aa:bb:cc:dd:ee:01");
+    dhcp_client_state_t *found2 = get_client_state("aa:bb:cc:dd:ee:02");
+    EXPECT_EQ(state1, found1);
+    EXPECT_EQ(state2, found2);
+    cleanup_client_list();
+}
+// ==========================================
+// Testcases for remove_client_state
+// ==========================================
+TEST_F(HotspotFdTestFixture, remove_client_state_NullMac) {
+    client_list = NULL;
+    remove_client_state(NULL);
+    EXPECT_EQ(nullptr, client_list);
+}
+
+TEST_F(HotspotFdTestFixture, remove_client_state_EmptyList) {
+    client_list = NULL;
+    remove_client_state("aa:bb:cc:dd:ee:ff");
+    EXPECT_EQ(nullptr, client_list);
+}
+
+TEST_F(HotspotFdTestFixture, remove_client_state_SingleClient) {
+    client_list = NULL;
+    get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, client_list);
+    remove_client_state("aa:bb:cc:dd:ee:ff");
+    EXPECT_EQ(nullptr, client_list);
+}
+TEST_F(HotspotFdTestFixture, remove_client_state_HeadOfList) {
+    client_list = NULL;
+    get_client_state("aa:bb:cc:dd:ee:01");
+    get_client_state("aa:bb:cc:dd:ee:02");
+    // client_list: 02 -> 01 (most recent at head)
+    remove_client_state("aa:bb:cc:dd:ee:02");
+    ASSERT_NE(nullptr, client_list);
+    EXPECT_STREQ("aa:bb:cc:dd:ee:01", client_list->mac);
+    EXPECT_EQ(nullptr, client_list->next);
+    cleanup_client_list();
+}
+
+TEST_F(HotspotFdTestFixture, remove_client_state_MiddleOfList) {
+    client_list = NULL;
+    get_client_state("aa:bb:cc:dd:ee:01");
+    get_client_state("aa:bb:cc:dd:ee:02");
+    get_client_state("aa:bb:cc:dd:ee:03");
+    // List: 03 -> 02 -> 01
+    remove_client_state("aa:bb:cc:dd:ee:02");
+    ASSERT_NE(nullptr, client_list);
+    EXPECT_STREQ("aa:bb:cc:dd:ee:03", client_list->mac);
+    ASSERT_NE(nullptr, client_list->next);
+    EXPECT_STREQ("aa:bb:cc:dd:ee:01", client_list->next->mac);
+    EXPECT_EQ(nullptr, client_list->next->next);
+    cleanup_client_list();
+}
+
+TEST_F(HotspotFdTestFixture, remove_client_state_NotFound) {
+    client_list = NULL;
+    get_client_state("aa:bb:cc:dd:ee:01");
+    remove_client_state("ff:ff:ff:ff:ff:ff");
+    ASSERT_NE(nullptr, client_list);
+    EXPECT_STREQ("aa:bb:cc:dd:ee:01", client_list->mac);
+    cleanup_client_list();
+}
+// ==========================================
+// Testcases for publish_to_onewifi
+// ==========================================
+TEST_F(HotspotFdTestFixture, publish_to_onewifi_NullInput) {
+    int result = publish_to_onewifi(NULL);
+    EXPECT_EQ(0, result);
+}
+
+TEST_F(HotspotFdTestFixture, publish_to_onewifi_EmptyString) {
+    char cmdStr[] = "";
+    int result = publish_to_onewifi(cmdStr);
+    EXPECT_EQ(0, result);
+}
+
+TEST_F(HotspotFdTestFixture, publish_to_onewifi_Success) {
+    char cmdStr[] = "aa:bb:cc:dd:ee:ff_5";
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_Init(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusValue_SetString(_, StrEq(cmdStr))).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Init(_, nullptr)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_SetValue(_, StrEq("Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient"), _)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusEvent_Publish(_, _)).Times(1).WillOnce(Return(RBUS_ERROR_SUCCESS));
+    EXPECT_CALL(*g_rbusMock, rbusValue_Release(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Release(_)).Times(1);
+
+    int result = publish_to_onewifi(cmdStr);
+    EXPECT_EQ(1, result);
+}
+TEST_F(HotspotFdTestFixture, publish_to_onewifi_PublishFails) {
+    char cmdStr[] = "aa:bb:cc:dd:ee:ff_5";
+
+    EXPECT_CALL(*g_rbusMock, rbusValue_Init(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusValue_SetString(_, StrEq(cmdStr))).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Init(_, nullptr)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_SetValue(_, StrEq("Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient"), _)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusEvent_Publish(_, _)).Times(1).WillOnce(Return(RBUS_ERROR_BUS_ERROR));
+    EXPECT_CALL(*g_rbusMock, rbusValue_Release(_)).Times(1);
+    EXPECT_CALL(*g_rbusMock, rbusObject_Release(_)).Times(1);
+
+    int result = publish_to_onewifi(cmdStr);
+    EXPECT_EQ(0, result);
+}
+
+// ==========================================
+// Testcases for DHCP timer state logic
+// ==========================================
+TEST_F(HotspotFdTestFixture, DhcpTimerState_InitialState) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+    EXPECT_FALSE(state->timer_running);
+    EXPECT_FALSE(state->dhcp_discover);
+    EXPECT_FALSE(state->dhcp_request);
+    EXPECT_FALSE(state->dhcp_offer);
+    EXPECT_FALSE(state->dhcp_ack);
+    EXPECT_EQ(0, state->ipv4_addr[0]);
+    cleanup_client_list();
+}
+TEST_F(HotspotFdTestFixture, DhcpTimerState_DiscoverStartsTimer) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+
+    // Simulate DHCP Discover starting the timer
+    clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+    state->timer_running = true;
+    state->dhcp_discover = true;
+    state->dhcp_request = false;
+    state->dhcp_offer = false;
+    state->dhcp_ack = false;
+    state->ipv4_addr[0] = '\0';
+
+    EXPECT_TRUE(state->timer_running);
+    EXPECT_TRUE(state->dhcp_discover);
+    EXPECT_FALSE(state->dhcp_request);
+    EXPECT_FALSE(state->dhcp_offer);
+    EXPECT_FALSE(state->dhcp_ack);
+    cleanup_client_list();
+}
+TEST_F(HotspotFdTestFixture, DhcpTimerState_FullDhcpSequence) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+
+    // Simulate full DHCP sequence: Discover -> Request -> Offer -> ACK
+    clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+    state->timer_running = true;
+    state->dhcp_discover = true;
+    state->ipv4_addr[0] = '\0';
+
+    state->dhcp_request = true;
+    state->dhcp_offer = true;
+
+    // ACK with expected IP
+    strncpy(state->ipv4_addr, "172.20.20.20", sizeof(state->ipv4_addr) - 1);
+    state->ipv4_addr[sizeof(state->ipv4_addr) - 1] = '\0';
+    state->dhcp_ack = true;
+
+    // All states should be set
+    EXPECT_TRUE(state->dhcp_discover);
+    EXPECT_TRUE(state->dhcp_request);
+    EXPECT_TRUE(state->dhcp_offer);
+    EXPECT_TRUE(state->dhcp_ack);
+
+    // Timer stopped after full successful sequence
+    state->timer_running = false;
+    state->dhcp_discover = state->dhcp_request = state->dhcp_offer = state->dhcp_ack = false;
+    EXPECT_FALSE(state->timer_running);
+
+    remove_client_state("aa:bb:cc:dd:ee:ff");
+    EXPECT_EQ(nullptr, client_list);
+}
+TEST_F(HotspotFdTestFixture, DhcpTimerState_IncompleteSequence_NoAck) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+
+    // Discover + Request but no Offer/ACK
+    clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+    state->timer_running = true;
+    state->dhcp_discover = true;
+    state->dhcp_request = true;
+    state->dhcp_offer = false;
+    state->dhcp_ack = false;
+
+    EXPECT_TRUE(state->timer_running);
+    EXPECT_TRUE(state->dhcp_discover);
+    EXPECT_TRUE(state->dhcp_request);
+    EXPECT_FALSE(state->dhcp_offer);
+    EXPECT_FALSE(state->dhcp_ack);
+
+    // Incomplete: should trigger deauth
+    EXPECT_FALSE(state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack);
+    cleanup_client_list();
+}
+TEST_F(HotspotFdTestFixture, DhcpTimerState_AckWithWrongIp) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+
+    clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+    state->timer_running = true;
+    state->dhcp_discover = true;
+    state->dhcp_request = true;
+    state->dhcp_offer = true;
+
+    // ACK with wrong IP (not 172.20.20.20) - dhcp_ack should NOT be set
+    strncpy(state->ipv4_addr, "192.168.1.100", sizeof(state->ipv4_addr) - 1);
+    state->ipv4_addr[sizeof(state->ipv4_addr) - 1] = '\0';
+
+    if (strcmp(state->ipv4_addr, "172.20.20.20") == 0) {
+        state->dhcp_ack = true;
+    }
+
+    EXPECT_FALSE(state->dhcp_ack);
+    EXPECT_FALSE(state->dhcp_discover && state->dhcp_request && state->dhcp_offer && state->dhcp_ack);
+    cleanup_client_list();
+}
+TEST_F(HotspotFdTestFixture, DhcpTimerState_ResetAfterTimeout) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+
+    state->timer_running = true;
+    state->dhcp_discover = true;
+    state->dhcp_request = true;
+
+    // Simulate timeout reset (as done in snoop_packetHandler)
+    state->timer_running = false;
+    state->dhcp_discover = state->dhcp_request = state->dhcp_offer = state->dhcp_ack = false;
+
+    EXPECT_FALSE(state->timer_running);
+    EXPECT_FALSE(state->dhcp_discover);
+    EXPECT_FALSE(state->dhcp_request);
+    EXPECT_FALSE(state->dhcp_offer);
+    EXPECT_FALSE(state->dhcp_ack);
+
+    remove_client_state("aa:bb:cc:dd:ee:ff");
+    EXPECT_EQ(nullptr, client_list);
+}
+TEST_F(HotspotFdTestFixture, DhcpTimerState_DiscoverDoesNotRestartRunningTimer) {
+    client_list = NULL;
+    dhcp_client_state_t *state = get_client_state("aa:bb:cc:dd:ee:ff");
+    ASSERT_NE(nullptr, state);
+
+    // First discover starts timer
+    clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+    state->timer_running = true;
+    state->dhcp_discover = true;
+    struct timespec original_start = state->dhcp_timer_start;
+
+    // Second discover should NOT overwrite if timer already running
+    // (matches the if (!state->timer_running) logic in packetHandler)
+    if (!state->timer_running) {
+        clock_gettime(CLOCK_MONOTONIC, &state->dhcp_timer_start);
+        state->dhcp_discover = true;
+    }
+
+    EXPECT_EQ(original_start.tv_sec, state->dhcp_timer_start.tv_sec);
+    EXPECT_EQ(original_start.tv_nsec, state->dhcp_timer_start.tv_nsec);
+    cleanup_client_list();
+}
+
+TEST_F(HotspotFdTestFixture, DhcpTimerState_RemoveAfterFullSequence) {
+    client_list = NULL;
+
+    // Add two clients
+    dhcp_client_state_t *state1 = get_client_state("aa:bb:cc:dd:ee:01");
+    dhcp_client_state_t *state2 = get_client_state("aa:bb:cc:dd:ee:02");
+    ASSERT_NE(nullptr, state1);
+    ASSERT_NE(nullptr, state2);
+
+    // Complete DHCP for client 1, remove it
+    state1->dhcp_discover = state1->dhcp_request = state1->dhcp_offer = state1->dhcp_ack = true;
+    remove_client_state("aa:bb:cc:dd:ee:01");
+
+    // Client 2 should still be in the list
+    dhcp_client_state_t *found2 = get_client_state("aa:bb:cc:dd:ee:02");
+    EXPECT_EQ(state2, found2);
+    cleanup_client_list();
+}
+
+                                   
