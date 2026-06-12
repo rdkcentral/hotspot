@@ -184,6 +184,12 @@ bool jansson_rollback_tunnel_info() {
          //hotspot_sysevent_enable_param();
          //firewall_restart();
      }
+#if defined (AMENITIES_NETWORK_ENABLED)
+     if (gre_enable) {
+         CcspTraceInfo(("HOTSPOT_LIB : Creating Amenity Bridges in %s\n", __FUNCTION__));
+         createAmenityBridges();
+     }
+#endif /*AMENITIES_NETWORK_ENABLED*/
      json_decref(jsonVapID);
      json_decref(jsonVapenable);
      json_decref(jsonVapName);
