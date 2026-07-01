@@ -1,0 +1,31 @@
+name: Automated Cherry-Pick Engine
+
+on:
+  pull_request:
+    types: [labeled, closed] # Triggers when a PR is closed/merged or labeled
+
+jobs:
+  backport:
+    # Only runs if the PR was successfully merged AND contains a target cherry-pick label
+    if: github.event.pull_request.merged == true && contains(toJSON(github.event.pull_request.labels.*.name), 'cherry-pick to ')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Target Branch Name
+        id: parse_label
+        run: |
+          # Finds the label starting with "cherry-pick to " and extracts the branch destination
+          RAW_LABEL=$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | grep "cherry-pick to " | head -n 1)
+          TARGET_BRANCH=${RAW_LABEL#"cherry-pick to "}
+          echo "target_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches full history so git can find the merge commits
+
+      - name: Execute Automated Cherry-Pick
+        uses: korthout/backport-action@v3
+        with:
+          target_branches: ${{ steps.parse_label.outputs.target_branch }}
+          pr_title: '[${target_branch}] ${pull_request.title}'
+          auth_token: ${{ secrets.GITHUB_TOKEN }}
