@@ -1,0 +1,14 @@
+name: Topic Gatekeeper
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - develop
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  run-shared-gatekeeper:
+    # Temporarily pointing to test branch for verification
+    uses: rdkcentral/build_tools_workflows/.github/workflows/gatekeeper.yml@feature/gatekeeper-test
