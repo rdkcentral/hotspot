@@ -3,45 +3,11 @@ name: Automated Cherry-Pick Engine
 on:
   pull_request:
     types: [labeled, closed] # Triggers when a PR is closed/merged or labeled
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to cherry-pick'
-        required: true
-      target_branch:
-        description: 'Target branch (e.g. release/26Q3)'
-        required: true
 
 jobs:
-  backport:
-    # Runs on label event (merged + cherry-pick label) OR manual dispatch
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged == true && contains(toJSON(github.event.pull_request.labels.*.name), 'cherry-pick to '))
-    runs-on: ubuntu-latest
-    steps:
-      - name: Extract Target Branch Name
-        id: parse_label
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "target_branch=${{ github.event.inputs.target_branch }}" >> $GITHUB_OUTPUT
-            echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
-          else
-            RAW_LABEL=$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | grep "cherry-pick to " | head -n 1)
-            TARGET_BRANCH=${RAW_LABEL#"cherry-pick to "}
-            echo "target_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
-            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetches full history so git can find the merge commits
-
-      - name: Execute Automated Cherry-Pick
-        uses: korthout/backport-action@v3
-        with:
-          target_branches: ${{ steps.parse_label.outputs.target_branch }}
-          pull_request_number: ${{ steps.parse_label.outputs.pr_number }}
-          pr_title: '[${target_branch}] ${pull_request.title}'
-          auth_token: ${{ secrets.GITHUB_TOKEN }}
+  cherry-pick:
+    if: github.event.pull_request.merged == true && contains(toJSON(github.event.pull_request.labels.*.name), 'cherry-pick to ')
+    uses: rdkcentral/build_tools_workflows/.github/workflows/cherry-pick.yml@feature/gatekeeper-test
+    with:
+      raw_labels: ${{ toJSON(github.event.pull_request.labels) }}
+    secrets: inherit
