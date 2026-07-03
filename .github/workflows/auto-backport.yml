@@ -10,4 +10,5 @@ jobs:
     uses: rdkcentral/build_tools_workflows/.github/workflows/cherry-pick.yml@feature/gatekeeper-test
     with:
       raw_labels: ${{ toJSON(github.event.pull_request.labels) }}
-    secrets: inherit
+    secrets:
+      CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
