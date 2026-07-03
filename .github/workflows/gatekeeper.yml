@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened]
     branches:
       - develop
+      - 'release/**'
+      - 'support/**'
   pull_request_review:
     types: [submitted]
 
