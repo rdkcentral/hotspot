@@ -501,9 +501,11 @@ static int deleteVaps()
                                 "%s %s ; ",
                                   IP_DEL, gVlanSyncData[index].vapInterface);
 #endif
+#if 0  /*RDKB-66227:Bridge deletion was skipped because EAPD relies on these bridges. */
             offset += snprintf(cmdBuf+offset,
                                 sizeof(cmdBuf) - offset,
                                 "%s %s ; ", IP_DEL, gVlanSyncData[index].bridgeName);
+#endif
             offset += snprintf(cmdBuf+offset,
                                 sizeof(cmdBuf) - offset,
                                 "%s %s ;", IP_DEL, GRE_IFNAME);
@@ -1533,9 +1535,11 @@ static int wanfailover_handleTunnel(bool create)
                                 "%s %s ; ",
                                 IP_DEL, gVlanSyncData[index].vapInterface);
 #endif
+#if 0  /*RDKB-66227:Bridge deletion was skipped because EAPD relies on these bridges. */
             offset += snprintf(cmdBuf+offset,
                                 sizeof(cmdBuf) - offset,
                                 "%s %s ; ", IP_DEL, gVlanSyncData[index].bridgeName);
+#endif
             offset += snprintf(cmdBuf+offset,
                                 sizeof(cmdBuf) - offset,
                                 "%s %s ;", IP_DEL, GRE_IFNAME);
