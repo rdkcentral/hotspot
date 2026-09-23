@@ -145,7 +145,7 @@ static int hotspot_arpd_init(void);
 static void hotspot_arpd_cleanup(void);
 static int write_pid_to_file(void);
 static int get_interface_by_ifname(if_t *target);
-static int is_gre_arp_request(const unsigned char *arpreq);
+static int is_gre_arp_request(const unsigned char *arpreq, size_t len);
 unsigned short ip_checksum(struct iphdr * header);
 static int 
 hotspot_arpd_nfqueue_cb(struct nfq_q_handle *qh, 
@@ -387,63 +387,97 @@ static int get_interface_by_ifname(if_t *target)
     
 }
 
-static int is_gre_arp_request(const unsigned char *arpreq)
+static int is_gre_arp_request(const unsigned char *arpreq, size_t len)
 {
-    unsigned char *pkt_ptr = (unsigned char*)arpreq;
-    struct iphdr *iphdr_ptr;
-    int outer_iphdr_len = 0;
+    const unsigned char *pkt_ptr = arpreq;
+    const struct iphdr *iphdr_ptr;
+    size_t outer_iphdr_len, inner_iphdr_len;
     unsigned short gre_flags, gre_proto;
 
-    if (!arpreq){
+    if (!arpreq || len < sizeof(struct iphdr)){
         printf("What ??? Invalid parameter!\n");
         return FALSE;
     }
- 
-    /* get icmp ip header */
-    iphdr_ptr = (struct iphdr *)pkt_ptr;
-    outer_iphdr_len = iphdr_ptr->ihl << 2;
 
-    /* skip icmp ip header */
-    pkt_ptr += outer_iphdr_len;
-    /* skip icmp header
-     * type (1) code (1) chksum (2) unused (2) next-hop mtu (2)
-     */
-    pkt_ptr += 8;
+    /* get icmp ip header */
+    iphdr_ptr = (const struct iphdr *)pkt_ptr;
+    outer_iphdr_len = (size_t)(iphdr_ptr->ihl << 2);
+    /* skip icmp ip header + icmp header (type/code/chksum/unused/mtu = 8 bytes) */
+    if (outer_iphdr_len < sizeof(struct iphdr) || outer_iphdr_len + 8 > len){
+        DPRINTF("GRE ARP: outer IP header exceeds payload!\n");
+        return FALSE;
+    }
+    pkt_ptr += outer_iphdr_len + 8;
+    len -= outer_iphdr_len + 8;
 
     /* now points original GRE ARP REQUEST */
-    iphdr_ptr = (struct iphdr *)pkt_ptr;
-    pkt_ptr += iphdr_ptr->ihl << 2;
+    if (len < sizeof(struct iphdr)){
+        DPRINTF("GRE ARP: no room for inner IP header!\n");
+        return FALSE;
+    }
+    iphdr_ptr = (const struct iphdr *)pkt_ptr;
+    inner_iphdr_len = (size_t)(iphdr_ptr->ihl << 2);
+    if (inner_iphdr_len < sizeof(struct iphdr) || inner_iphdr_len + GRE_HLEN > len){
+        DPRINTF("GRE ARP: inner IP header exceeds payload!\n");
+        return FALSE;
+    }
+    pkt_ptr += inner_iphdr_len;
 
-    gre_flags = ((unsigned short *)pkt_ptr)[0];
-    gre_proto = ((unsigned short *)pkt_ptr)[1];
+    gre_flags = ((const unsigned short *)pkt_ptr)[0];
+    gre_proto = ((const unsigned short *)pkt_ptr)[1];
     DPRINTF("GRE FLAGS 0x%02x PROTO 0x%02x!\n", gre_flags, gre_proto);
 
     return (gre_proto == htons(ETH_P_ARP)) ? TRUE : FALSE;
 }
 
-static int arp_isValidIpAddress(char *ipAddress)
+static int arp_isValidIpAddress(const unsigned char ipAddress[IP_ALEN])
 {
-    struct sockaddr_in sa;
-    int result = inet_pton(AF_INET, ipAddress, &(sa.sin_addr));
+    unsigned long ip = 0;
+    errno_t rc = -1;
 
-    return (((result != 0) && (sa.sin_addr.s_addr != 0)) ? TRUE: FALSE);
+    /* raw binary octets, not a text string, so validate directly instead of via inet_pton */
+    rc = memcpy_s(&ip, sizeof(ip), ipAddress, IP_ALEN);
+    if (rc != EOK)
+    {
+        ERR_CHK(rc);
+        return FALSE;
+    }
+
+    return (ip != 0) ? TRUE : FALSE;
 }
 
-static int is_a_valid_gre_arp_request(unsigned char* arp_packet)
+static int is_a_valid_gre_arp_request(unsigned char* arp_packet, size_t len)
 {
     struct iphdr *pIphdr;
     unsigned char sender_ip[4];
     unsigned char *pArpReq;
+    size_t outer_iphdr_len, inner_iphdr_len;
     errno_t rc = -1;
 
+    if (!arp_packet || len < sizeof(struct iphdr))
+        return FALSE;
+
     pIphdr = (struct iphdr *)arp_packet;
-    arp_packet += (pIphdr->ihl << 2) + 8;   /*skip original ip and icmp header*/
+    outer_iphdr_len = (size_t)(pIphdr->ihl << 2);
+    if (outer_iphdr_len < sizeof(struct iphdr) || outer_iphdr_len + 8 > len)
+        return FALSE;
+
+    arp_packet += outer_iphdr_len + 8;   /*skip original ip and icmp header*/
+    len -= outer_iphdr_len + 8;
     pArpReq = arp_packet;
 
-    pArpReq += (pIphdr->ihl << 2);
+    /* re-read the inner IP header so its own ihl (not the outer one) is used */
+    if (len < sizeof(struct iphdr))
+        return FALSE;
+    pIphdr = (struct iphdr *)pArpReq;
+    inner_iphdr_len = (size_t)(pIphdr->ihl << 2);
+    if (inner_iphdr_len < sizeof(struct iphdr) || inner_iphdr_len + GRE_HLEN + ARP_PACKET_LEN > len)
+        return FALSE;
+
+    pArpReq += inner_iphdr_len;
     DPRINTF("ARP reply: outer ip header done!\n");
 
-    pArpReq += 4;
+    pArpReq += GRE_HLEN;
     DPRINTF("ARP reply: GRE header done!\n");
 
     pArpReq += 8;
@@ -475,15 +509,39 @@ build_gre_arp_reply_packet(
     unsigned char sender_ip[4], target_ip[4];
     unsigned long _beIp;
     unsigned char *pArpReq;
+    size_t remaining, outer_iphdr_len, inner_iphdr_len;
     errno_t rc = -1;
-	
+
+    if (!packet || !length || *length < 0 || (size_t)*length < sizeof(struct iphdr)){
+        if (length) *length = 0;
+        return NULL;
+    }
+    remaining = (size_t)*length;
+
     pIphdr = (struct iphdr *)packet;
-    packet += (pIphdr->ihl << 2) + 8;   /*skip original ip and icmp header*/
-    *length -= (pIphdr->ihl << 2) + 8;
+    outer_iphdr_len = (size_t)(pIphdr->ihl << 2);
+    if (outer_iphdr_len < sizeof(struct iphdr) || outer_iphdr_len + 8 > remaining){
+        *length = 0;
+        return NULL;
+    }
+
+    packet += outer_iphdr_len + 8;   /*skip original ip and icmp header*/
+    remaining -= outer_iphdr_len + 8;
+    *length = (int)remaining;
     pArpReq = packet;
 
-    /*req_ptr now points to GRE ARP REQUEST */
+    /*req_ptr now points to GRE ARP REQUEST, re-read its own ihl (not the outer one) */
+    if (remaining < sizeof(struct iphdr)){
+        *length = 0;
+        return NULL;
+    }
     pIphdr = (struct iphdr *)pArpReq;
+    inner_iphdr_len = (size_t)(pIphdr->ihl << 2);
+    if (inner_iphdr_len < sizeof(struct iphdr) || inner_iphdr_len + GRE_HLEN + ARP_PACKET_LEN > remaining){
+        *length = 0;
+        return NULL;
+    }
+
     _beIp = pIphdr->saddr;
     // pIphdr->id    += htons(1);
     pIphdr->ttl   = 64;
@@ -491,11 +549,11 @@ build_gre_arp_reply_packet(
     pIphdr->daddr = _beIp;
     pIphdr->check = ip_checksum(pIphdr);
 
-    pArpReq += (pIphdr->ihl << 2);
+    pArpReq += inner_iphdr_len;
     DPRINTF("ARP reply: outer ip header done!\n");
     
     /* No need to change GRE header */
-    pArpReq += 4;
+    pArpReq += GRE_HLEN;
     DPRINTF("ARP reply: GRE header done!\n");
 
     /* build arp reply */
@@ -643,12 +701,12 @@ hotspot_arpd_nfqueue_cb(
     }
 
     /* Not GRE ARP REQUEST, we let it go */
-    if (is_gre_arp_request(payload) < 0){
+    if (is_gre_arp_request(payload, (size_t)ret) < 0){
         DPRINTF("NFQUEUE not GRE ARP REQUEST!\n");
         goto accept;
     }
 
-    if (!is_a_valid_gre_arp_request(payload))
+    if (is_a_valid_gre_arp_request(payload, (size_t)ret) == FALSE)
     {
         DPRINTF("NFQUEUE not a valid GRE ARP REQUEST!\n");
         goto accept;
@@ -745,10 +803,25 @@ static void hotspot_arpd_nfqueue_handler(void *data)
 
     DPRINTF("NFQUEUE fd %d!\n", fd);
 
-    while ((res = recv(fd, buf, sizeof(buf), 0)) && res >= 0) {
+    for (;;) {
+        res = recv(fd, buf, sizeof(buf), 0);
+        if (res < 0) {
+            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+                continue;               /* transient, retry */
+            }
+            if (errno == ENOBUFS) {
+                DPRINTF("NFQUEUE ENOBUFS - overload, continuing\n");
+                continue;               /* dropped messages, keep processing */
+            }
+            DPRINTF("NFQUEUE recv() fatal error: %d\n", errno);
+            break;                      /* genuinely fatal, exit loop */
+        }
+        if (res == 0) {
+            break;                      /* socket closed */
+        }
         DPRINTF("NFQUEUE fd %d received %d bytes!\n", fd, res);
         nfq_handle_packet(nfqueue->handle, buf, res);
-    }    
+    }
 
     /* should never reach here */
     DPRINTF("NFQUEUE closing queue handle!\n");
