@@ -628,7 +628,7 @@ int hotspot_sysevent_enable_param()
 
 
 static void addBrideAndVlan(int vlanIndex, int wan_vlan){
-     char   cmdBuf[1024];
+     char   cmdBuf[1024] = {0};
      int    offset = 0;
      #ifdef CORE_NET_LIB
          libnet_status status = CNL_STATUS_SUCCESS;
@@ -830,7 +830,9 @@ static void addBrideAndVlan(int vlanIndex, int wan_vlan){
 
      CcspTraceInfo(("HOTSPOT_LIB : Buffer 2 gre add = %s %d\n", cmdBuf, offset));
 
-     sys_execute_cmd(cmdBuf);
+     if (offset > 0) {
+         sys_execute_cmd(cmdBuf);
+     }
 
      if(vlanIndex == VLAN_INDEX_1){
          t2_event_d("XWIFI_VLANID_6_split", wan_vlan);
