@@ -1,0 +1,14 @@
+name: Automated Cherry-Pick Engine
+
+on:
+  pull_request:
+    types: [labeled, closed] # Triggers when a PR is closed/merged or labeled
+
+jobs:
+  cherry-pick:
+    if: github.event.pull_request.merged == true && contains(toJSON(github.event.pull_request.labels.*.name), 'cherry-pick to ')
+    uses: rdkcentral/build_tools_workflows/.github/workflows/cherry-pick.yml@feature/gatekeeper-test
+    with:
+      raw_labels: ${{ toJSON(github.event.pull_request.labels) }}
+    secrets:
+      CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
