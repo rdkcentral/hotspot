@@ -351,18 +351,22 @@ static int get_interface_by_ifname(if_t *target)
 
     if(sysevent_fd_gs >= 0)
     {
-        sysevent_get(sysevent_fd_gs, sysevent_token_gs, SYSEVENT_MAPT_CONFIG_FLAG, buf, sizeof(buf));
-
-        if (strncmp(buf,"set", 3) == 0)
-        {
-            sysevent_get(sysevent_fd_gs, sysevent_token_gs, SYSEVENT_MAPT_IP_ADDRESS, buf, sizeof(buf));
-
-            if(inet_aton(buf,&(target->ip)))
-            {
-                mapt_ipv4 = 1;
-            }
-        }
-        sysevent_close(sysevent_fd_gs, sysevent_token_gs);
+        if(0 == sysevent_get(sysevent_fd_gs, sysevent_token_gs, SYSEVENT_MAPT_CONFIG_FLAG, buf, sizeof(buf)))
+	{
+		if (strncmp(buf,"set", 3) == 0)
+		{
+			if(0 == sysevent_get(sysevent_fd_gs, sysevent_token_gs, SYSEVENT_MAPT_IP_ADDRESS, buf, sizeof(buf)))
+			{
+				if(inet_aton(buf,&(target->ip)))
+				{
+					mapt_ipv4 = 1;
+				}
+			}
+		}
+	}
+	sysevent_close(sysevent_fd_gs, sysevent_token_gs);
+	sysevent_fd_gs = -1;
+	sysevent_token_gs = 0;
     }
 #endif
     if(0 == mapt_ipv4)

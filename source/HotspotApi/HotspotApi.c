@@ -198,8 +198,10 @@ void firewall_restart() {
 
 static int hotspot_sysevent_disable_param(){
 
-    sysevent_get(gSyseventfd, gSysevent_token, "hotspot_1-status", 
-                                                 NULL, 0);
+    if(0 != sysevent_get(gSyseventfd, gSysevent_token, "hotspot_1-status", NULL, 0))
+    {
+	    return 1;
+    }
     return 0;
 }
 
@@ -1214,7 +1216,10 @@ pErr setHotspot(void* const network){
      else{
          CcspTraceInfo(("HOTSPOT_LIB : Gre is not enabled. Deleting tunnel info \n"));
          deleteVaps();
-         hotspot_sysevent_disable_param();
+         if(hotspot_sysevent_disable_param())
+	 {
+		 CcspTraceInfo(("HOTSPOT_LIB : sysevent_get failed for hotspot_1-status \n"));
+	 }
          memset(vlanIdList, '\0', sizeof(vlanIdList));
          memset(gPriEndptIP, '\0', sizeof(gPriEndptIP));
          memset(gSecEndptIP, '\0', sizeof(gSecEndptIP));
